@@ -10,7 +10,43 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="El Enganche">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/431/431238.png">
+    
+    <!-- Placeholder para el ícono generado dinámicamente -->
+    <link rel="apple-touch-icon" id="apple-icon">
+    <link rel="icon" type="image/png" id="favicon">
+    <link rel="manifest" id="manifest-placeholder">
+
+    <!-- GENERADOR DE ÍCONO AUTOMÁTICO -->
+    <script>
+        (function() {
+            const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <rect width="512" height="512" fill="#111827"/>
+                <circle cx="256" cy="256" r="220" fill="#00ff55"/>
+                <circle cx="256" cy="256" r="180" fill="#111827"/>
+                <circle cx="256" cy="256" r="140" fill="#111827" stroke="#00ff55" stroke-width="20"/>
+                <path d="M256 180 L300 240 L280 300 H232 L212 240 Z" fill="#00ff55"/>
+                <circle cx="256" cy="256" r="30" fill="#111827"/>
+            </svg>`;
+            const iconUrl = "data:image/svg+xml;base64," + btoa(iconSvg);
+            document.getElementById('apple-icon').href = iconUrl;
+            document.getElementById('favicon').href = iconUrl;
+            const manifest = {
+                "name": "El Enganche",
+                "short_name": "El Enganche",
+                "start_url": ".",
+                "display": "standalone",
+                "background_color": "#111827",
+                "theme_color": "#00ff55",
+                "orientation": "portrait",
+                "icons": [
+                    { "src": iconUrl, "sizes": "192x192", "type": "image/svg+xml" },
+                    { "src": iconUrl, "sizes": "512x512", "type": "image/svg+xml" }
+                ]
+            };
+            const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+            document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(blob));
+        })();
+    </script>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -50,7 +86,7 @@
             Link as LinkIcon, User, LogOut, Mail, Lock, Trash2, Ban, Trophy, 
             Activity, ArrowLeft, HelpCircle, FileText, Lock as LockIcon, Bell, 
             CheckCircle, XCircle, Send, Crown, UserPlus, Share2, Edit2, Save, MinusCircle,
-            Home, Zap, ClipboardList, AlertTriangle, Download
+            Home, Zap, ClipboardList, AlertTriangle, Download, Loader2
         } from 'https://esm.sh/lucide-react@0.294.0';
         
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -92,7 +128,7 @@
         } catch (e) { console.error("Error init firebase", e); }
 
         const appId = 'el-enganche-web';
-        const ADMIN_EMAILS = ["worlddigital2011@gmail.com", "admin@elenganche.com"];
+        const ADMIN_EMAILS = ["worlddigital2011@gmail.com", "admin@elenganche.com", "eyamilgimenez98@gmail.com"];
         const LA_PLATA_ZONES = [
             "Todas", "La Plata (Casco Urbano)", "City Bell", "Villa Elisa", 
             "Manuel B. Gonnet", "Arturo Seguí", "Ringuelet", "Tolosa", 
@@ -124,8 +160,6 @@
             const [showNotifications, setShowNotifications] = useState(false);
             const [formatFilter, setFormatFilter] = useState('Todos');
             const [zoneFilter, setZoneFilter] = useState('Todas');
-            
-            // PWA Install State
             const [deferredPrompt, setDeferredPrompt] = useState(null);
             
             const [user, setUser] = useState(null);
@@ -135,6 +169,7 @@
             const [invitations, setInvitations] = useState([]);
             const [myTeam, setMyTeam] = useState(null);
             const [loading, setLoading] = useState(true);
+            const [submitting, setSubmitting] = useState(false); // Estado para feedback visual de carga
             
             // Modales
             const [showLoginModal, setShowLoginModal] = useState(false);
@@ -143,7 +178,7 @@
             const [showPublishModal, setShowPublishModal] = useState(false);
             const [showScoutModal, setShowScoutModal] = useState(false); 
             const [showTeamSearchModal, setShowTeamSearchModal] = useState(false); 
-            const [showInstallModal, setShowInstallModal] = useState(false); // Modal Instrucciones PWA
+            const [showInstallModal, setShowInstallModal] = useState(false);
             const [confirmation, setConfirmation] = useState({ show: false, text: '', action: null });
             
             // Forms
@@ -167,17 +202,13 @@
             const pendingInvitations = invitations.filter(inv => inv.status === 'pending');
             const isCaptain = myTeam && myTeam.captainId === user?.uid;
 
-            // --- PWA INSTALL EFFECT ---
+            // --- EFFECTS ---
             useEffect(() => {
-                const handler = (e) => {
-                    e.preventDefault();
-                    setDeferredPrompt(e);
-                };
+                const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
                 window.addEventListener('beforeinstallprompt', handler);
                 return () => window.removeEventListener('beforeinstallprompt', handler);
             }, []);
 
-            // --- AUTH & INIT ---
             useEffect(() => {
                 const init = async () => {
                     onAuthStateChanged(auth, async (u) => {
@@ -207,7 +238,6 @@
                 init();
             }, []);
 
-            // --- DATA SYNC ---
             useEffect(() => {
                 if (!user || !db) return;
                 try {
@@ -217,7 +247,6 @@
                             .find(t => t.captainId === user.uid || t.members?.some(m => m.uid === user.uid));
                         setMyTeam(found || null);
                     });
-
                     const qInv = collection(db, 'artifacts', appId, 'public', 'data', 'invitations');
                     onSnapshot(qInv, (s) => {
                         const all = s.docs.map(d => ({id: d.id, ...d.data()}));
@@ -237,7 +266,6 @@
                         else setMatches(data);
                         setLoading(false);
                     }, () => { setMatches(INITIAL_MATCHES); setLoading(false); });
-
                     const qP = collection(db, 'artifacts', appId, 'public', 'data', 'players');
                     onSnapshot(qP, (s) => {
                         const data = s.docs.map(d => ({id: d.id, ...d.data()}));
@@ -256,7 +284,7 @@
                 for (const p of INITIAL_PLAYERS) { await addDoc(playersRef, { ...p, createdAt: serverTimestamp() }); }
             };
 
-            // --- HANDLERS ---
+            // --- ACTIONS & ROBUST HANDLERS ---
             const handleGoogleLogin = async () => {
                 try { await signInWithPopup(auth, new GoogleAuthProvider()); setView('app'); }
                 catch (e) { alert("Error al iniciar sesión: " + e.message); }
@@ -269,19 +297,97 @@
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     if (outcome === 'accepted') setDeferredPrompt(null);
-                } else {
-                    setShowInstallModal(true);
-                }
+                } else { setShowInstallModal(true); }
             };
 
             const handleJoinMatch = async (match) => {
                 if (!user) { setShowLoginModal(true); return; }
                 const ref = doc(db, 'artifacts', appId, 'public', 'data', 'matches', match.id);
                 const isIn = match.playersSigned?.includes(user.uid);
-                if (isIn) await updateDoc(ref, { missing: increment(1), playersSigned: arrayRemove(user.uid) });
-                else if (match.missing > 0) await updateDoc(ref, { missing: increment(-1), playersSigned: arrayUnion(user.uid) });
+                try {
+                    if (isIn) await updateDoc(ref, { missing: increment(1), playersSigned: arrayRemove(user.uid) });
+                    else if (match.missing > 0) await updateDoc(ref, { missing: increment(-1), playersSigned: arrayUnion(user.uid) });
+                } catch(err) { alert("Error al unirse: " + err.message); }
             };
             
+            const handlePublishMatch = async (e) => {
+                e.preventDefault();
+                if (!user) return;
+                setSubmitting(true);
+                
+                try {
+                    const isRival = publishData.type === 'rival';
+                    const missingCount = isRival ? 0 : neededPositions.length;
+                    const positionString = isRival ? 'Equipo Completo' : neededPositions.join(', ');
+
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), {
+                        ...publishData,
+                        missing: missingCount,
+                        position: positionString, 
+                        teamName: myTeam ? myTeam.name : (user.displayName + " Team"),
+                        urgent: false, playersSigned: [], createdBy: user.uid, createdAt: serverTimestamp()
+                    });
+                    // Reset Form
+                    setPublishData({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '' });
+                    setNeededPositions(['Cualquiera']);
+                    setShowPublishModal(false);
+                    alert("¡Partido publicado exitosamente!");
+                } catch(err) {
+                    alert("Error al publicar: " + err.message);
+                } finally {
+                    setSubmitting(false);
+                }
+            };
+
+            const handleJoinAsPlayer = async () => {
+                if (!user) { setShowLoginModal(true); return; }
+                if (players.some(p => p.uid === user.uid)) return alert("Ya estás postulado como agente libre.");
+                setSubmitting(true);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'players'), {
+                        uid: user.uid, name: user.displayName, position: userProfile?.position || 'Polifuncional', zone: 'La Plata',
+                        rating: 0, status: 'Disponible', createdAt: serverTimestamp()
+                    });
+                    alert("¡Te has postulado correctamente!");
+                } catch(err) { alert("Error: " + err.message); } 
+                finally { setSubmitting(false); }
+            };
+
+            const handleCreateTeam = async (e) => {
+                e.preventDefault();
+                if (!user || !newTeamName) return;
+                setSubmitting(true);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
+                        name: newTeamName, captainId: user.uid, captainName: user.displayName,
+                        members: [{ uid: user.uid, name: user.displayName, role: 'captain', status: 'active' }],
+                        searchName: newTeamName.toLowerCase(), createdAt: serverTimestamp()
+                    });
+                    setNewTeamName(''); // Reset
+                    setShowCreateTeamModal(false);
+                    alert("¡Equipo creado! Ahora eres el capitán.");
+                } catch(err) { alert("Error: " + err.message); }
+                finally { setSubmitting(false); }
+            };
+
+            const sendInvitation = async (e) => {
+                e.preventDefault();
+                if (!user) return;
+                setSubmitting(true);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
+                        type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name,
+                        toUserId: targetPlayer.uid, toPlayerName: targetPlayer.name, ...inviteData, status: 'pending',
+                        createdAt: serverTimestamp()
+                    });
+                    setInviteData({ place: '', time: '' }); // Reset
+                    setShowInviteModal(false);
+                    alert("¡Invitación enviada!");
+                } catch(err) { alert("Error: " + err.message); }
+                finally { setSubmitting(false); }
+            };
+
+            // Other Handlers (Simplified for brevity as they are mainly updates/reads)
             const handleClickHeaderButton = () => {
                 if (!user) return setShowLoginModal(true);
                 if (!myTeam) return setShowCreateTeamModal(true);
@@ -291,43 +397,10 @@
 
             const handleAddSlot = () => setNeededPositions([...neededPositions, 'Cualquiera']);
             const handleRemoveSlot = (index) => {
-                if (neededPositions.length > 1) {
-                    const newSlots = [...neededPositions];
-                    newSlots.splice(index, 1);
-                    setNeededPositions(newSlots);
-                }
+                const newSlots = [...neededPositions]; newSlots.splice(index, 1); setNeededPositions(newSlots);
             };
             const handleSlotChange = (index, value) => {
-                const newSlots = [...neededPositions];
-                newSlots[index] = value;
-                setNeededPositions(newSlots);
-            };
-
-            const handlePublishMatch = async (e) => {
-                e.preventDefault();
-                if (!user) return;
-                const isRival = publishData.type === 'rival';
-                const missingCount = isRival ? 0 : neededPositions.length;
-                const positionString = isRival ? 'Equipo Completo' : neededPositions.join(', ');
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), {
-                    ...publishData,
-                    missing: missingCount,
-                    position: positionString, 
-                    teamName: myTeam ? myTeam.name : (user.displayName + " Team"),
-                    urgent: false, playersSigned: [], createdBy: user.uid, createdAt: serverTimestamp()
-                });
-                setShowPublishModal(false);
-                setNeededPositions(['Cualquiera']);
-                alert("¡Publicación exitosa!");
-            };
-
-            const handleJoinAsPlayer = async () => {
-                if (!user) { setShowLoginModal(true); return; }
-                if (players.some(p => p.uid === user.uid)) return alert("Ya estás postulado.");
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'players'), {
-                    uid: user.uid, name: user.displayName, position: userProfile?.position || 'Polifuncional', zone: 'La Plata',
-                    rating: 0, status: 'Disponible', createdAt: serverTimestamp()
-                });
+                const newSlots = [...neededPositions]; newSlots[index] = value; setNeededPositions(newSlots);
             };
 
             const handleUpdatePosition = async (newPos) => {
@@ -336,52 +409,28 @@
                 await updateDoc(userRef, { position: newPos });
                 setUserProfile({ ...userProfile, position: newPos });
                 setIsEditingPosition(false);
-                if (myPlayerProfile) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { position: newPos });
-                }
+                if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { position: newPos });
             };
             
             const askConfirmation = (text, action) => { setConfirmation({ show: true, text, action }); };
-
+            
             const handleDeletePlayer = (id) => {
                 if (!user) return;
                 if (isAdmin || players.find(p=>p.id===id)?.uid === user?.uid) {
-                    askConfirmation("¿Vas a eliminar a este jugador de la lista?", async () => {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', id));
-                    });
+                    askConfirmation("¿Vas a eliminar a este jugador de la lista?", async () => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', id)));
                 }
             };
-
             const handleDeleteMatch = (idMatch) => {
                 if (!user) return;
                 const match = matches.find(m => m.id === idMatch);
                 const isCreator = match && match.createdBy === user.uid;
                 if(isAdmin || isCreator) {
-                    askConfirmation("¿Vas a eliminar este partido permanentemente?", async () => {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'matches', idMatch));
-                    });
+                    askConfirmation("¿Vas a eliminar este partido permanentemente?", async () => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'matches', idMatch)));
                 }
             };
-
-            const handleCreateTeam = async (e) => {
-                e.preventDefault();
-                if (!user || !newTeamName) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
-                    name: newTeamName, captainId: user.uid, captainName: user.displayName,
-                    members: [{ uid: user.uid, name: user.displayName, role: 'captain', status: 'active' }],
-                    searchName: newTeamName.toLowerCase(), 
-                    createdAt: serverTimestamp()
-                });
-                setShowCreateTeamModal(false);
-            };
-
             const handleCreateDemoTeam = async () => {
                 if (!user) return;
-                const demoPlayers = [
-                    { uid: 'demo1', name: 'Esteban La Roca', role: 'player', status: 'active' },
-                    { uid: 'demo2', name: 'Pedro Picapiedra', role: 'player', status: 'active' },
-                    { uid: 'demo3', name: 'Santi Cazorla', role: 'player', status: 'active' },
-                ];
+                const demoPlayers = [{ uid: 'd1', name: 'Esteban', role: 'player', status: 'active' }, { uid: 'd2', name: 'Pedro', role: 'player', status: 'active' }];
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
                     name: "Dream Team (Demo)", captainId: user.uid, captainName: user.displayName,
                     members: [{ uid: user.uid, name: user.displayName, role: 'captain', status: 'active' }, ...demoPlayers],
@@ -389,189 +438,96 @@
                 });
                 alert("Equipo Demo Generado!");
             };
-
             const handleToggleMemberStatus = async (memberUid, currentStatus) => {
                 if (!isCaptain || !myTeam || !user) return;
                 const newStatus = currentStatus === 'active' ? 'injured' : 'active';
                 const updatedMembers = myTeam.members.map(m => m.uid === memberUid ? { ...m, status: newStatus } : m);
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teams', myTeam.id), { members: updatedMembers });
             };
-
             const handleSearchUsers = async (e) => {
-                e.preventDefault();
-                if (!searchQuery.trim()) return;
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), 
-                    where('searchName', '>=', searchQuery.toLowerCase()), 
-                    where('searchName', '<=', searchQuery.toLowerCase() + '\uf8ff'));
-                const snaps = await getDocs(q);
-                setSearchResults(snaps.docs.map(d => d.data()));
+                e.preventDefault(); if (!searchQuery.trim()) return;
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('searchName', '>=', searchQuery.toLowerCase()), where('searchName', '<=', searchQuery.toLowerCase() + '\uf8ff'));
+                const snaps = await getDocs(q); setSearchResults(snaps.docs.map(d => d.data()));
             };
-
             const handleSearchTeams = async (e) => {
-                e.preventDefault();
-                if (!teamSearchQuery.trim()) return;
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), 
-                    where('searchName', '>=', teamSearchQuery.toLowerCase()), 
-                    where('searchName', '<=', teamSearchQuery.toLowerCase() + '\uf8ff'));
-                const snaps = await getDocs(q);
-                setTeamSearchResults(snaps.docs.map(d => ({id: d.id, ...d.data()})));
+                e.preventDefault(); if (!teamSearchQuery.trim()) return;
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), where('searchName', '>=', teamSearchQuery.toLowerCase()), where('searchName', '<=', teamSearchQuery.toLowerCase() + '\uf8ff'));
+                const snaps = await getDocs(q); setTeamSearchResults(snaps.docs.map(d => ({id: d.id, ...d.data()})));
             };
-
-            const sendWhatsAppInvite = () => {
-                const text = `Hola! Te invito a unirte a mi equipo *${myTeam.name}* en El Enganche.`;
-                const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-                window.open(url, '_blank');
-            };
-
+            const sendWhatsAppInvite = () => { window.open(`https://wa.me/?text=${encodeURIComponent(`Unite a ${myTeam.name} en El Enganche.`)}`, '_blank'); };
             const sendSystemInvite = async (targetUser) => {
                 if (!user || !myTeam) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
-                    type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name,
-                    toUserId: targetUser.uid, toPlayerName: targetUser.name, place: "Fichaje", time: "General", status: 'pending',
-                    createdAt: serverTimestamp()
-                });
-                alert("Solicitud enviada a " + targetUser.name);
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name, toUserId: targetUser.uid, toPlayerName: targetUser.name, place: "Fichaje", time: "General", status: 'pending', createdAt: serverTimestamp() });
+                alert("Solicitud enviada");
             };
-
             const sendJoinRequest = async (targetTeam) => {
                 if (!user) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
-                    type: 'join_request', fromUserId: user.uid, fromName: user.displayName, 
-                    teamId: targetTeam.id, teamName: targetTeam.name, toUserId: targetTeam.captainId, status: 'pending',
-                    createdAt: serverTimestamp()
-                });
-                alert("Solicitud enviada al capitán de " + targetTeam.name);
-                setShowTeamSearchModal(false);
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'join_request', fromUserId: user.uid, fromName: user.displayName, teamId: targetTeam.id, teamName: targetTeam.name, toUserId: targetTeam.captainId, status: 'pending', createdAt: serverTimestamp() });
+                alert("Solicitud enviada"); setShowTeamSearchModal(false);
             };
-
             const openInviteModal = (player) => {
                 if (!user) { setShowLoginModal(true); return; }
-                if (!myTeam || myTeam.captainId !== user.uid) { alert("Solo los capitanes pueden invitar."); return; }
+                if (!myTeam || myTeam.captainId !== user.uid) { alert("Solo capitanes."); return; }
                 setTargetPlayer(player); setInviteData({ place: '', time: '' }); setShowInviteModal(true);
             };
-
-            const sendInvitation = async (e) => {
-                e.preventDefault();
-                if (!user) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
-                    type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name,
-                    toUserId: targetPlayer.uid, toPlayerName: targetPlayer.name, ...inviteData, status: 'pending',
-                    createdAt: serverTimestamp()
-                });
-                setShowInviteModal(false);
-                alert("Enviada!");
-            };
-
             const handleRespondInvitation = async (inv, response) => {
                 if (!user) return;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invitations', inv.id), { status: response });
                 if (response === 'accepted') {
                     const teamRef = doc(db, 'artifacts', appId, 'public', 'data', 'teams', inv.teamId);
                     const snap = await getDoc(teamRef);
-                    if (snap.exists()) {
-                        const currentMembers = snap.data().members || [];
+                    if (snap.exists() && !snap.data().members.some(m => m.uid === (inv.type === 'join_request' ? inv.fromUserId : user.uid))) {
                         const uidToAdd = inv.type === 'join_request' ? inv.fromUserId : user.uid;
                         const nameToAdd = inv.type === 'join_request' ? inv.fromName : user.displayName;
-                        if (!currentMembers.some(m => m.uid === uidToAdd)) {
-                            await updateDoc(teamRef, { 
-                                members: arrayUnion({ uid: uidToAdd, name: nameToAdd, role: 'player', status: 'active' }) 
-                            });
-                            alert(inv.type === 'join_request' ? `Has fichado a ${nameToAdd}` : `¡Te uniste a ${inv.teamName}!`);
-                        }
+                        await updateDoc(teamRef, { members: arrayUnion({ uid: uidToAdd, name: nameToAdd, role: 'player', status: 'active' }) });
+                        alert(`¡${nameToAdd} se unió a ${inv.teamName}!`);
                     }
                 }
             };
-
-            const StarRating = ({ rating }) => (
-                <div className="flex gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={10} className={i < rating ? 'fill-yellow-400 text-yellow-600' : 'fill-gray-400 text-gray-500'} />
-                    ))}
-                </div>
-            );
-
-            // --- COMPONENTE HELPER: SELECTOR DE ZONAS ---
-            const ZoneSelectOptions = () => (
-                <>
-                    {Object.entries(ZONES_BY_AREA).map(([region, zones]) => (
-                        <optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">
-                            {zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}
-                        </optgroup>
-                    ))}
-                </>
-            );
+            const mockAction = (msg) => { if(!user) return setShowLoginModal(true); alert(msg); }
+            const StarRating = ({ rating }) => (<div className="flex gap-0.5">{[...Array(5)].map((_, i) => (<Star key={i} size={10} className={i < rating ? 'fill-yellow-400 text-yellow-600' : 'fill-gray-400 text-gray-500'} />))}</div>);
+            const ZoneSelectOptions = () => (<>{Object.entries(ZONES_BY_AREA).map(([region, zones]) => (<optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">{zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}</optgroup>))}</>);
 
             // --- VISTAS ---
-            
-            // 1. LANDING
             if (view === 'landing') {
                 return (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#003300] to-[#001a00] relative overflow-hidden">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(0,255,85,0.1),_transparent_70%)]"></div>
                         <div className="z-10 mb-12 transform hover:scale-105 transition-transform duration-500">
-                            <div className="inline-flex p-6 bg-black/30 rounded-full border-4 border-[#00ff55] shadow-[0_0_50px_rgba(0,255,85,0.4)] mb-6">
-                                <LinkIcon size={64} className="text-[#00ff55] -rotate-45" />
-                            </div>
-                            <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white drop-shadow-2xl">
-                                EL <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00ff55] to-[#ccffcc]">ENGANCHE</span>
-                            </h1>
+                            <div className="inline-flex p-6 bg-black/30 rounded-full border-4 border-[#00ff55] shadow-[0_0_50px_rgba(0,255,85,0.4)] mb-6"><LinkIcon size={64} className="text-[#00ff55] -rotate-45" /></div>
+                            <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white drop-shadow-2xl">EL <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00ff55] to-[#ccffcc]">ENGANCHE</span></h1>
                             <p className="text-gray-400 uppercase tracking-widest text-xs sm:text-sm mt-4 font-bold">Fútbol Amateur La Plata</p>
                         </div>
                         <div className="z-10 w-full max-w-sm space-y-4">
                             {user ? (
-                                <button onClick={() => setView('app')} className="w-full bg-[#00ff55] hover:bg-white text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,85,0.4)] flex items-center justify-center gap-2 uppercase tracking-wide transition-all">
-                                    <User size={24}/> Continuar como {user.displayName?.split(' ')[0]}
-                                </button>
+                                <button onClick={() => setView('app')} className="w-full bg-[#00ff55] hover:bg-white text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,85,0.4)] flex items-center justify-center gap-2 uppercase tracking-wide transition-all"><User size={24}/> Continuar como {user.displayName?.split(' ')[0]}</button>
                             ) : (
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 border border-gray-200">
-                                    {/* LOGO GOOGLE OFICIAL */}
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                        <path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/>
-                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                    </svg>
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                                     Continuar con Google
                                 </button>
                             )}
-                            <button onClick={handleGuest} className="w-full bg-white/5 hover:bg-white/10 text-[#00ff55] border-2 border-[#00ff55]/50 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-                                <Users size={20}/> Entrar como Invitado
-                            </button>
+                            <button onClick={handleGuest} className="w-full bg-white/5 hover:bg-white/10 text-[#00ff55] border-2 border-[#00ff55]/50 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all"><Users size={20}/> Entrar como Invitado</button>
                         </div>
                     </div>
                 );
             }
 
-            // 2. APP UI
             const filteredMatches = matches.filter(m => (formatFilter === 'Todos' || m.format === formatFilter) && (zoneFilter === 'Todas' || m.zone === zoneFilter));
 
             return (
                 <div className="flex-1 flex flex-col">
-                    {/* Header */}
                     <header className="bg-gradient-to-r from-[#003300] to-[#004d26] border-b-4 border-[#00ff55] sticky top-0 z-50 shadow-xl">
                         <div className="max-w-6xl mx-auto px-3 h-16 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-1 hover:bg-white/10 rounded"><Menu size={24} className="text-[#00ff55]"/></button>
-                                <div className="font-black italic text-2xl tracking-tighter cursor-pointer flex items-center" onClick={() => setView('landing')}>
-                                    EL <span className="text-[#00ff55]">ENGANCHE</span> <LinkIcon size={16} className="text-[#00ff55] -rotate-45 ml-1"/>
-                                </div>
+                                <div className="font-black italic text-2xl tracking-tighter cursor-pointer flex items-center" onClick={() => setView('landing')}>EL <span className="text-[#00ff55]">ENGANCHE</span> <LinkIcon size={16} className="text-[#00ff55] -rotate-45 ml-1"/></div>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex gap-2">
-                                    <button 
-                                        onClick={handleClickHeaderButton} 
-                                        className="bg-[#00ff55] text-black px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.4)] hover:bg-white font-black uppercase text-xs flex items-center gap-1"
-                                    >
-                                        <PlusCircle size={14}/> <span className="hidden sm:inline">{!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</span>
-                                    </button>
-                                    <button 
-                                        onClick={handleInstallClick} 
-                                        className="bg-gray-800 text-[#00ff55] border border-[#00ff55] px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.2)] hover:bg-[#00ff55] hover:text-black font-black uppercase text-xs flex items-center gap-1 transition-all"
-                                    >
-                                        <Download size={14}/> <span className="hidden sm:inline">App</span>
-                                    </button>
+                                    <button onClick={handleClickHeaderButton} className="bg-[#00ff55] text-black px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.4)] hover:bg-white font-black uppercase text-xs flex items-center gap-1"><PlusCircle size={14}/> <span className="hidden sm:inline">{!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</span></button>
+                                    <button onClick={handleInstallClick} className="bg-gray-800 text-[#00ff55] border border-[#00ff55] px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.2)] hover:bg-[#00ff55] hover:text-black font-black uppercase text-xs flex items-center gap-1 transition-all"><Download size={14}/> <span className="hidden sm:inline">App</span></button>
                                 </div>
-
                                 {user ? (
                                     <div className="flex items-center gap-3">
                                         <button className="relative p-2" onClick={() => setShowNotifications(!showNotifications)}>
@@ -580,17 +536,12 @@
                                         </button>
                                         <div className="hidden xs:flex items-center gap-2 cursor-pointer" onClick={() => setView('profile')}>
                                             <div className="text-right leading-none"><span className="text-[10px] text-gray-400">Jugador</span><div className="font-bold text-[#00ff55] text-xs">{user.displayName?.split(' ')[0]}</div></div>
-                                            <div className="w-8 h-8 rounded-full border border-gray-600 bg-gray-800 overflow-hidden">
-                                                {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User className="p-1 text-white"/>}
-                                            </div>
+                                            <div className="w-8 h-8 rounded-full border border-gray-600 bg-gray-800 overflow-hidden">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User className="p-1 text-white"/>}</div>
                                         </div>
                                     </div>
-                                ) : (
-                                    <button onClick={() => setShowLoginModal(true)} className="text-xs font-bold text-[#00ff55] flex items-center gap-1"><User size={14}/> INGRESAR</button>
-                                )}
+                                ) : (<button onClick={() => setShowLoginModal(true)} className="text-xs font-bold text-[#00ff55] flex items-center gap-1"><User size={14}/> INGRESAR</button>)}
                             </div>
                         </div>
-                        {/* Mobile/Burger Menu */}
                         {isMenuOpen && (
                             <>
                                 <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setIsMenuOpen(false)}></div>
@@ -614,55 +565,33 @@
                                                     </div>
                                                 )}
                                             </div>
-                                            {!myTeam && (
-                                                <button onClick={() => { setShowCreateTeamModal(true); setIsMenuOpen(false); }} className="w-full py-4 text-white font-bold text-xs uppercase hover:bg-gray-800 flex items-center justify-center gap-2 border-b border-gray-800"><Shield size={16}/> Crear Equipo</button>
-                                            )}
+                                            {!myTeam && <button onClick={() => { setShowCreateTeamModal(true); setIsMenuOpen(false); }} className="w-full py-4 text-white font-bold text-xs uppercase hover:bg-gray-800 flex items-center justify-center gap-2 border-b border-gray-800"><Shield size={16}/> Crear Equipo</button>}
                                             <button onClick={handleLogout} className="w-full py-4 text-red-500 font-bold text-xs uppercase bg-black/20 hover:bg-red-900/20">Cerrar Sesión</button>
                                         </div>
-                                    ) : (
-                                        <div className="p-4"><button onClick={() => setShowLoginModal(true)} className="w-full bg-[#00ff55] text-black font-bold py-3 rounded uppercase">Iniciar Sesión</button></div>
-                                    )}
+                                    ) : (<div className="p-4"><button onClick={() => setShowLoginModal(true)} className="w-full bg-[#00ff55] text-black font-bold py-3 rounded uppercase">Iniciar Sesión</button></div>)}
                                 </div>
                             </>
                         )}
-                        {/* Notification Dropdown */}
                         {showNotifications && (
                              <div className="absolute top-16 right-2 w-72 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl z-[60]">
-                                 <div className="p-3 bg-gray-900 border-b border-gray-800 font-bold text-xs text-gray-400 uppercase tracking-wider">
-                                     Invitaciones ({pendingInvitations.length})
-                                 </div>
+                                 <div className="p-3 bg-gray-900 border-b border-gray-800 font-bold text-xs text-gray-400 uppercase tracking-wider">Invitaciones ({pendingInvitations.length})</div>
                                  <div className="max-h-64 overflow-y-auto">
                                      {pendingInvitations.length > 0 ? (
                                          pendingInvitations.map(inv => (
                                              <div key={inv.id} className="p-3 border-b border-gray-800 hover:bg-white/5 transition-colors">
                                                  <div className="text-[#00ff55] font-bold text-sm mb-1">{inv.teamName}</div>
-                                                 <div className="text-xs text-gray-300 mb-2">
-                                                     <span className="block">📅 {inv.place}</span>
-                                                     <span className="block">⏰ {inv.time}</span>
-                                                     <span className="block text-gray-500 italic mt-1">De: {inv.fromName}</span>
-                                                 </div>
-                                                 <div className="flex gap-2">
-                                                     <button onClick={() => handleRespondInvitation(inv, 'accepted')} className="flex-1 bg-green-900/50 hover:bg-green-800 text-green-200 text-[10px] py-1.5 rounded border border-green-800 font-bold flex items-center justify-center gap-1"><CheckCircle size={12}/> Confirmar</button>
-                                                     <button onClick={() => handleRespondInvitation(inv, 'rejected')} className="flex-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-[10px] py-1.5 rounded border border-red-800 font-bold flex items-center justify-center gap-1"><XCircle size={12}/> Rechazar</button>
-                                                 </div>
+                                                 <div className="text-xs text-gray-300 mb-2"><span className="block">📅 {inv.place}</span><span className="block">⏰ {inv.time}</span><span className="block text-gray-500 italic mt-1">De: {inv.fromName}</span></div>
+                                                 <div className="flex gap-2"><button onClick={() => handleRespondInvitation(inv, 'accepted')} className="flex-1 bg-green-900/50 hover:bg-green-800 text-green-200 text-[10px] py-1.5 rounded border border-green-800 font-bold flex items-center justify-center gap-1"><CheckCircle size={12}/> Confirmar</button><button onClick={() => handleRespondInvitation(inv, 'rejected')} className="flex-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-[10px] py-1.5 rounded border border-red-800 font-bold flex items-center justify-center gap-1"><XCircle size={12}/> Rechazar</button></div>
                                              </div>
                                          ))
-                                     ) : (
-                                         <div className="p-4 text-center text-xs text-gray-500 italic">No tienes invitaciones pendientes.</div>
-                                     )}
+                                     ) : (<div className="p-4 text-center text-xs text-gray-500 italic">No tienes invitaciones pendientes.</div>)}
                                  </div>
                              </div>
                          )}
                     </header>
+                    <div className="bg-black py-2 px-3 border-b border-gray-800 text-xs flex items-center text-gray-400 overflow-hidden whitespace-nowrap"><span className="text-[#00ff55] mr-2 animate-pulse">●</span> <span className="font-bold text-gray-200 mr-1">MERCADO:</span> Mostrando {filteredMatches.length} partidos y {players.length} agentes libres en zona La Plata.</div>
 
-                    {/* Ticker */}
-                    <div className="bg-black py-2 px-3 border-b border-gray-800 text-xs flex items-center text-gray-400 overflow-hidden whitespace-nowrap">
-                        <span className="text-[#00ff55] mr-2 animate-pulse">●</span> <span className="font-bold text-gray-200 mr-1">MERCADO:</span> Mostrando {filteredMatches.length} partidos y {players.length} agentes libres en zona La Plata.
-                    </div>
-
-                    {/* Main */}
                     <main className="flex-1 max-w-6xl mx-auto w-full p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        
                         {view === 'profile' && user ? (
                             <div className="lg:col-span-12 space-y-4">
                                 <div className="bg-[#1a1a1a] p-6 rounded-lg border border-gray-800 flex flex-col sm:flex-row items-center gap-6 relative">
@@ -672,46 +601,22 @@
                                         {myTeam && myTeam.captainId === user.uid && <div className="text-[#00ff55] font-bold text-sm uppercase flex items-center gap-1 justify-center sm:justify-start"><Crown size={14}/> Capitán de {myTeam.name}</div>}
                                         <p className="text-gray-400 text-sm">{user.email}</p>
                                         <div className="flex gap-3 justify-center sm:justify-start mt-3 items-center">
-                                            {/* POSICIÓN EDITABLE */}
                                             {isEditingPosition ? (
-                                                <div className="flex gap-1 items-center">
-                                                    <select className="bg-black text-white text-xs p-1 rounded border border-gray-600" value={userProfile?.position || 'Polifuncional'} onChange={(e) => handleUpdatePosition(e.target.value)}>
-                                                        <option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option><option>Polifuncional</option>
-                                                    </select>
-                                                    <button onClick={() => setIsEditingPosition(false)} className="text-[#00ff55]"><Save size={16}/></button>
-                                                </div>
+                                                <div className="flex gap-1 items-center"><select className="bg-black text-white text-xs p-1 rounded border border-gray-600" value={userProfile?.position || 'Polifuncional'} onChange={(e) => handleUpdatePosition(e.target.value)}><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option><option>Polifuncional</option></select><button onClick={() => setIsEditingPosition(false)} className="text-[#00ff55]"><Save size={16}/></button></div>
                                             ) : (
-                                                <div className="flex gap-2 items-center bg-gray-800 px-3 py-1 rounded-full text-xs text-white cursor-pointer hover:bg-gray-700" onClick={() => setIsEditingPosition(true)}>
-                                                    {userProfile?.position || 'Polifuncional'} <Edit2 size={10} className="text-gray-400"/>
-                                                </div>
+                                                <div className="flex gap-2 items-center bg-gray-800 px-3 py-1 rounded-full text-xs text-white cursor-pointer hover:bg-gray-700" onClick={() => setIsEditingPosition(true)}>{userProfile?.position || 'Polifuncional'} <Edit2 size={10} className="text-gray-400"/></div>
                                             )}
                                             {myTeam && <div className="bg-[#00ff55]/10 px-3 py-1 rounded border border-[#00ff55]/30 text-[#00ff55] font-bold flex items-center gap-2"><Shield size={14}/> {myTeam.name}</div>}
                                         </div>
                                         {isAdmin && <button onClick={handleCreateDemoTeam} className="mt-4 bg-yellow-600/50 text-white text-xs px-2 py-1 rounded border border-yellow-500 flex items-center gap-1 mx-auto sm:mx-0"><Zap size={12}/> Generar Equipo Demo</button>}
                                     </div>
                                 </div>
-                                {/* ESTADÍSTICAS DEL JUGADOR */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
-                                        <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Calendar size={14} className="text-[#00ff55]"/> Organizados</div>
-                                        <div className="text-3xl font-black text-white">{myOrganizedMatches.length}</div>
-                                    </div>
-                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
-                                        <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Star size={14} className="text-yellow-500"/> Calificación</div>
-                                        <div className="text-3xl font-black text-white">{userRating.toFixed(1)}</div>
-                                    </div>
+                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800"><div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Calendar size={14} className="text-[#00ff55]"/> Organizados</div><div className="text-3xl font-black text-white">{myOrganizedMatches.length}</div></div>
+                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800"><div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Star size={14} className="text-yellow-500"/> Calificación</div><div className="text-3xl font-black text-white">{userRating.toFixed(1)}</div></div>
                                 </div>
-
-                                {/* Team Section */}
                                 <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-white flex items-center gap-2"><Shield size={18} className="text-[#00ff55]"/> Mi Equipo</h3>
-                                        {isCaptain && (
-                                            <button onClick={() => setShowScoutModal(true)} className="bg-[#263238] hover:bg-[#00ff55] hover:text-black text-[#00ff55] border border-[#00ff55] text-xs font-bold px-3 py-1.5 rounded flex items-center gap-2 transition-colors">
-                                                <UserPlus size={14}/> Fichar Jugador
-                                            </button>
-                                        )}
-                                    </div>
+                                    <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-white flex items-center gap-2"><Shield size={18} className="text-[#00ff55]"/> Mi Equipo</h3>{isCaptain && (<button onClick={() => setShowScoutModal(true)} className="bg-[#263238] hover:bg-[#00ff55] hover:text-black text-[#00ff55] border border-[#00ff55] text-xs font-bold px-3 py-1.5 rounded flex items-center gap-2 transition-colors"><UserPlus size={14}/> Fichar Jugador</button>)}</div>
                                     {myTeam ? (
                                         <div>
                                             <div className="text-xl font-black italic mb-2">{myTeam.name}</div>
@@ -719,57 +624,32 @@
                                                 {myTeam.members?.map(m => (
                                                     <div key={m.uid} className={`flex justify-between p-2 rounded border border-gray-800 ${m.status === 'injured' ? 'bg-red-900/10' : 'bg-black/30'}`}>
                                                         <div className="text-gray-300 flex items-center gap-2">{m.name} {m.role === 'captain' && <Crown size={12} className="text-yellow-500"/>}</div>
-                                                        {isCaptain && m.uid !== user.uid && (
-                                                            <button onClick={() => handleToggleMemberStatus(m.uid, m.status)} className="text-gray-500 hover:text-white">
-                                                                <Activity size={16}/>
-                                                            </button>
-                                                        )}
+                                                        {isCaptain && m.uid !== user.uid && (<button onClick={() => handleToggleMemberStatus(m.uid, m.status)} className="text-gray-500 hover:text-white"><Activity size={16}/></button>)}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center py-4">
-                                            <p className="text-gray-500 text-sm mb-3">No tienes equipo.</p>
-                                            <div className="flex gap-2 justify-center">
-                                                <button onClick={() => setShowCreateTeamModal(true)} className="bg-[#00ff55] text-black font-bold px-4 py-2 rounded text-xs inline-flex items-center gap-2"><PlusCircle size={14}/> Crear Equipo</button>
-                                                <button onClick={() => setShowTeamSearchModal(true)} className="bg-gray-700 text-white font-bold px-4 py-2 rounded text-xs inline-flex items-center gap-2 hover:bg-gray-600"><Search size={14}/> Buscar Equipo</button>
-                                            </div>
-                                        </div>
+                                        <div className="text-center py-4"><p className="text-gray-500 text-sm mb-3">No tienes equipo.</p><div className="flex gap-2 justify-center"><button onClick={() => setShowCreateTeamModal(true)} className="bg-[#00ff55] text-black font-bold px-4 py-2 rounded text-xs inline-flex items-center gap-2"><PlusCircle size={14}/> Crear Equipo</button><button onClick={() => setShowTeamSearchModal(true)} className="bg-gray-700 text-white font-bold px-4 py-2 rounded text-xs inline-flex items-center gap-2 hover:bg-gray-600"><Search size={14}/> Buscar Equipo</button></div></div>
                                     )}
                                 </div>
-                                
-                                {/* MIS PUBLICACIONES */}
                                 {myOrganizedMatches.length > 0 && (
                                     <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 overflow-hidden">
                                         <div className="bg-gray-800 px-4 py-3 border-b border-gray-700 font-bold text-white flex gap-2 items-center"><ClipboardList size={16} className="text-[#00ff55]"/> Mis Publicaciones</div>
                                         {myOrganizedMatches.map(m => (
-                                            <div key={m.id} className="p-3 border-b border-gray-700 flex justify-between items-center">
-                                                <div className="text-xs text-gray-300">{m.time} - {m.place}</div>
-                                                <button onClick={() => handleDeleteMatch(m.id)} className="text-red-500"><Trash2 size={14}/></button>
-                                            </div>
+                                            <div key={m.id} className="p-3 border-b border-gray-700 flex justify-between items-center"><div className="text-xs text-gray-300">{m.time} - {m.place}</div><button onClick={() => handleDeleteMatch(m.id)} className="text-red-500"><Trash2 size={14}/></button></div>
                                         ))}
                                     </div>
                                 )}
                             </div>
                         ) : (
                             <>
-                                {/* Partidos */}
                                 <div className="lg:col-span-8 space-y-4">
                                     <div className="bg-gradient-to-r from-[#1b4d2e] to-[#2e7d32] px-4 py-3 rounded-t-lg border-b-2 border-[#4caf50] flex flex-wrap gap-2 justify-between items-center text-white">
-                                        <h2 className="font-bold flex items-center gap-2"><Calendar size={20} className="text-[#00ff55]"/> PARTIDOS</h2>
+                                        <h2 className="font-bold flex items-center gap-2"><Calendar size={20} className="text-[#00ff55]"/> PARTIDOS <span className="text-sm text-green-200">({filteredMatches.length})</span></h2>
                                         <div className="flex gap-2">
-                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setFormatFilter(e.target.value)}>
-                                                <option value="Todos">Fmt: Todos</option>
-                                                <option value="F5">F5</option>
-                                                <option value="F7">F7</option>
-                                                <option value="F9">F9</option>
-                                                <option value="F11">F11</option>
-                                            </select>
-                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setZoneFilter(e.target.value)}>
-                                                <option value="Todas">Zonas: Todas</option>
-                                                <ZoneSelectOptions />
-                                            </select>
+                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setFormatFilter(e.target.value)}><option value="Todos">Fmt: Todos</option><option value="F5">F5</option><option value="F7">F7</option><option value="F9">F9</option><option value="F11">F11</option></select>
+                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setZoneFilter(e.target.value)}><option value="Todas">Zonas: Todas</option><ZoneSelectOptions /></select>
                                         </div>
                                     </div>
                                     <div className="bg-[#dce6dc] rounded-b-lg overflow-hidden text-gray-800">
@@ -783,34 +663,17 @@
                                                     <div className="text-xs font-mono text-green-800 font-bold mt-1">⏰ {m.time}</div>
                                                 </div>
                                                 <div className="text-right">
-                                                    {m.type === 'rival' ? <span className="bg-black text-[#00ff55] px-2 py-1 rounded text-[10px] font-bold border border-[#00ff55]">RIVAL</span> : 
-                                                    <div className="flex flex-col items-center"><span className="font-bold text-lg leading-none">{m.missing}</span><span className="text-[9px] uppercase font-bold text-gray-500">Faltan</span></div>}
-                                                    {m.type === 'player' && m.position && (
-                                                        <div className="text-xs text-[#006400] font-bold mt-1 max-w-[150px] truncate" title={m.position}>
-                                                            Buscan: {m.position}
-                                                        </div>
-                                                    )}
+                                                    {m.type === 'rival' ? <span className="bg-black text-[#00ff55] px-2 py-1 rounded text-[10px] font-bold border border-[#00ff55]">RIVAL</span> : <div className="flex flex-col items-center"><span className="font-bold text-lg leading-none">{m.missing}</span><span className="text-[9px] uppercase font-bold text-gray-500">Faltan</span></div>}
+                                                    {m.type === 'player' && m.position && (<div className="text-xs text-[#006400] font-bold mt-1 max-w-[150px] truncate" title={m.position}>Buscan: {m.position}</div>)}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    {isAdmin && (
-                                                        <button 
-                                                            onClick={() => handleDeleteMatch(m.id)} 
-                                                            className="p-1.5 rounded bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40"
-                                                            title="Borrar partido (Admin)"
-                                                        >
-                                                            <Trash2 size={14}/>
-                                                        </button>
-                                                    )}
-                                                    <button onClick={() => handleJoinMatch(m)} className={`px-3 py-1.5 rounded text-xs font-bold border-b-2 ${m.playersSigned?.includes(user?.uid) ? 'bg-red-600 text-white border-red-800' : 'bg-[#008f45] text-white border-[#006400]'}`}>
-                                                        {m.playersSigned?.includes(user?.uid) ? 'Salir' : 'Anotarme'}
-                                                    </button>
+                                                    {isAdmin && (<button onClick={() => handleDeleteMatch(m.id)} className="p-1.5 rounded bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40" title="Borrar partido (Admin)"><Trash2 size={14}/></button>)}
+                                                    <button onClick={() => handleJoinMatch(m)} className={`px-3 py-1.5 rounded text-xs font-bold border-b-2 ${m.playersSigned?.includes(user?.uid) ? 'bg-red-600 text-white border-red-800' : 'bg-[#008f45] text-white border-[#006400]'}`}>{m.playersSigned?.includes(user?.uid) ? 'Salir' : 'Anotarme'}</button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Jugadores */}
                                 <div className="lg:col-span-4 space-y-4">
                                     <div className="bg-[#212121] text-white px-4 py-3 rounded-t-lg border-t-4 border-[#00ff55] font-bold text-sm flex items-center gap-2"><Users size={16} className="text-[#00ff55]"/> AGENTES LIBRES</div>
                                     <div className="bg-[#dce6dc] border border-gray-600 rounded-b-lg shadow-md p-2 space-y-2">
@@ -818,26 +681,11 @@
                                             <div key={p.id} className="bg-white p-2 rounded shadow-sm flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
                                                     <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center font-bold text-gray-700">{p.name[0]}</div>
-                                                    <div>
-                                                        <div className="font-bold text-xs uppercase">{p.name}</div>
-                                                        <div className="text-[10px] text-gray-500">{p.position}</div>
-                                                    </div>
+                                                    <div><div className="font-bold text-xs uppercase">{p.name}</div><div className="text-[10px] text-gray-500">{p.position}</div></div>
                                                 </div>
                                                 <div className="flex gap-2 items-center">
-                                                    {isAdmin && (
-                                                        <button 
-                                                            onClick={() => handleDeletePlayer(p.id)} 
-                                                            className="p-1.5 rounded bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40"
-                                                            title="Borrar jugador (Admin)"
-                                                        >
-                                                            <Trash2 size={14}/>
-                                                        </button>
-                                                    )}
-                                                    {user && p.uid === user.uid ? (
-                                                        <button onClick={() => handleDeletePlayer(p.id)} className="text-red-500 text-[10px] font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50">BAJARME</button>
-                                                    ) : (
-                                                        isCaptain && <button onClick={() => openInviteModal(p)} className="text-[#006400] text-[10px] font-bold border border-green-200 px-2 py-1 rounded hover:bg-green-50 uppercase">Invitar</button>
-                                                    )}
+                                                    {isAdmin && (<button onClick={() => handleDeletePlayer(p.id)} className="p-1.5 rounded bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40" title="Borrar jugador (Admin)"><Trash2 size={14}/></button>)}
+                                                    {user && p.uid === user.uid ? (<button onClick={() => handleDeletePlayer(p.id)} className="text-red-500 text-[10px] font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50">BAJARME</button>) : (isCaptain && <button onClick={() => openInviteModal(p)} className="text-[#006400] text-[10px] font-bold border border-green-200 px-2 py-1 rounded hover:bg-green-50 uppercase">Invitar</button>)}
                                                 </div>
                                             </div>
                                         ))}
@@ -848,18 +696,12 @@
                         )}
                     </main>
 
-                    {/* Modales Básicos */}
                     {showLoginModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
                             <div className="bg-[#1a1a1a] p-6 rounded border border-[#00ff55] w-full max-w-sm">
                                 <h3 className="text-white font-bold mb-4">ACCESO REQUERIDO</h3>
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 border border-gray-200">
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                        <path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/>
-                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                    </svg>
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                                     Continuar con Google
                                 </button>
                                 <button onClick={() => setShowLoginModal(false)} className="text-gray-500 text-xs w-full text-center mt-3">Cancelar</button>
@@ -873,57 +715,27 @@
                                 <h3 className="font-bold mb-4 text-[#00ff55]">PUBLICAR</h3>
                                 <form onSubmit={handlePublishMatch} className="space-y-3">
                                     <div className="flex gap-2"><button type="button" onClick={() => setPublishData({...publishData, type: 'rival'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='rival'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>RIVAL</button><button type="button" onClick={() => setPublishData({...publishData, type: 'player'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='player'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>JUGADOR</button></div>
-                                    
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-gray-400 text-xs font-bold ml-1">Formato</label>
-                                            <select 
-                                                value={publishData.format} 
-                                                onChange={(e) => setPublishData({...publishData, format: e.target.value})}
-                                                className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"
-                                            >
-                                                <option>F5</option><option>F7</option><option>F9</option><option>F11</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-gray-400 text-xs font-bold ml-1">Zona</label>
-                                            <select 
-                                                value={publishData.zone} 
-                                                onChange={(e) => setPublishData({...publishData, zone: e.target.value})}
-                                                className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"
-                                            >
-                                                <ZoneSelectOptions />
-                                            </select>
-                                        </div>
+                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Formato</label><select value={publishData.format} onChange={(e) => setPublishData({...publishData, format: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><option>F5</option><option>F7</option><option>F9</option><option>F11</option></select></div>
+                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Zona</label><select value={publishData.zone} onChange={(e) => setPublishData({...publishData, zone: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><ZoneSelectOptions /></select></div>
                                     </div>
-
                                     <input placeholder="Cancha" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
                                     <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
-                                    
                                     {publishData.type === 'player' && (
                                         <div className="space-y-2 p-3 bg-gray-800/50 rounded border border-dashed border-gray-600">
                                             <label className="text-gray-400 text-xs font-bold">Posiciones Necesarias</label>
                                             {neededPositions.map((pos, index) => (
                                                 <div key={index} className="flex gap-2">
-                                                    <select 
-                                                        value={pos} 
-                                                        onChange={(e) => handleSlotChange(index, e.target.value)}
-                                                        className="flex-1 bg-black/50 border border-gray-700 text-white rounded py-1.5 px-2 text-sm outline-none focus:border-[#00ff55]"
-                                                    >
-                                                        <option>Cualquiera</option><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option>
-                                                    </select>
-                                                    {neededPositions.length > 1 && (
-                                                        <button type="button" onClick={() => handleRemoveSlot(index)} className="text-red-500 hover:text-white"><MinusCircle size={18}/></button>
-                                                    )}
+                                                    <select value={pos} onChange={(e) => handleSlotChange(index, e.target.value)} className="flex-1 bg-black/50 border border-gray-700 text-white rounded py-1.5 px-2 text-sm outline-none focus:border-[#00ff55]"><option>Cualquiera</option><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option></select>
+                                                    {neededPositions.length > 1 && (<button type="button" onClick={() => handleRemoveSlot(index)} className="text-red-500 hover:text-white"><MinusCircle size={18}/></button>)}
                                                 </div>
                                             ))}
                                             <button type="button" onClick={handleAddSlot} className="w-full text-[#00ff55] text-xs font-bold py-1 border border-[#00ff55]/30 rounded hover:bg-[#00ff55]/10">+ Agregar Jugador</button>
                                         </div>
                                     )}
-
                                     <div className="flex gap-2">
                                         <button type="button" onClick={() => setShowPublishModal(false)} className="flex-1 text-gray-400 text-xs">Cancelar</button>
-                                        <button type="submit" className="flex-1 bg-[#00ff55] text-black font-bold py-2 rounded text-xs">PUBLICAR</button>
+                                        <button type="submit" className="flex-1 bg-[#00ff55] text-black font-bold py-2 rounded text-xs">{submitting ? <Loader2 className="animate-spin mx-auto"/> : 'PUBLICAR'}</button>
                                     </div>
                                 </form>
                             </div>
@@ -937,7 +749,7 @@
                                 <form onSubmit={sendInvitation} className="space-y-3">
                                     <input placeholder="Lugar" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={inviteData.place} onChange={e=>setInviteData({...inviteData, place:e.target.value})} required/>
                                     <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={inviteData.time} onChange={e=>setInviteData({...inviteData, time:e.target.value})} required/>
-                                    <button type="submit" className="w-full bg-[#00ff55] text-black font-bold py-2 rounded text-xs">ENVIAR</button>
+                                    <button type="submit" className="w-full bg-[#00ff55] text-black font-bold py-2 rounded text-xs">{submitting ? 'ENVIANDO...' : 'ENVIAR'}</button>
                                     <button type="button" onClick={() => setShowInviteModal(false)} className="w-full text-gray-500 text-xs mt-2">Cancelar</button>
                                 </form>
                             </div>
@@ -950,7 +762,7 @@
                                 <h3 className="font-bold mb-2 text-[#00ff55]">CREAR EQUIPO</h3>
                                 <form onSubmit={handleCreateTeam} className="space-y-3">
                                     <input placeholder="Nombre del Equipo" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} required/>
-                                    <button type="submit" className="w-full bg-[#00ff55] text-black font-bold py-2 rounded text-xs">FUNDAR</button>
+                                    <button type="submit" className="w-full bg-[#00ff55] text-black font-bold py-2 rounded text-xs">{submitting ? 'CREANDO...' : 'FUNDAR'}</button>
                                     <button type="button" onClick={() => setShowCreateTeamModal(false)} className="w-full text-gray-500 text-xs mt-2">Cancelar</button>
                                 </form>
                             </div>
@@ -960,32 +772,18 @@
                     {showScoutModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
                             <div className="bg-[#1a1a1a] p-6 rounded border border-[#00ff55] w-full max-w-md text-white h-[80vh] flex flex-col">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-[#00ff55] flex gap-2"><Search size={20}/> FICHAR JUGADOR</h3>
-                                    <button onClick={() => setShowScoutModal(false)}><X size={20} className="text-gray-400"/></button>
-                                </div>
-                                <div className="flex gap-2 mb-4">
-                                    <input placeholder="Buscar por nombre..." className="flex-1 bg-black/50 p-2 rounded text-sm border border-gray-700" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}/>
-                                    <button onClick={handleSearchUsers} className="bg-[#00ff55] text-black p-2 rounded"><Search size={16}/></button>
-                                </div>
+                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-[#00ff55] flex gap-2"><Search size={20}/> FICHAR JUGADOR</h3><button onClick={() => setShowScoutModal(false)}><X size={20} className="text-gray-400"/></button></div>
+                                <div className="flex gap-2 mb-4"><input placeholder="Buscar por nombre..." className="flex-1 bg-black/50 p-2 rounded text-sm border border-gray-700" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}/><button onClick={handleSearchUsers} className="bg-[#00ff55] text-black p-2 rounded"><Search size={16}/></button></div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
                                     {searchResults.map(u => (
                                         <div key={u.uid} className="flex justify-between items-center p-2 bg-gray-800 rounded">
-                                            <div>
-                                                <div className="font-bold text-sm">{u.name}</div>
-                                                <div className="text-xs text-gray-400">{u.position}</div>
-                                            </div>
+                                            <div><div className="font-bold text-sm">{u.name}</div><div className="text-xs text-gray-400">{u.position}</div></div>
                                             <button onClick={() => sendSystemInvite(u)} className="text-[#00ff55] text-xs border border-[#00ff55] px-2 py-1 rounded">Invitar</button>
                                         </div>
                                     ))}
                                     {searchResults.length === 0 && searchQuery && <p className="text-center text-gray-500 text-sm">No se encontraron jugadores.</p>}
                                 </div>
-                                <div className="border-t border-gray-700 pt-4">
-                                    <p className="text-xs text-center text-gray-400 mb-2">¿No tiene cuenta?</p>
-                                    <button onClick={sendWhatsAppInvite} className="w-full bg-[#25D366] text-white font-bold py-2 rounded flex items-center justify-center gap-2 text-sm">
-                                        <Share2 size={16}/> Invitar por WhatsApp
-                                    </button>
-                                </div>
+                                <div className="border-t border-gray-700 pt-4"><p className="text-xs text-center text-gray-400 mb-2">¿No tiene cuenta?</p><button onClick={sendWhatsAppInvite} className="w-full bg-[#25D366] text-white font-bold py-2 rounded flex items-center justify-center gap-2 text-sm"><Share2 size={16}/> Invitar por WhatsApp</button></div>
                             </div>
                         </div>
                     )}
@@ -993,21 +791,12 @@
                     {showTeamSearchModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
                             <div className="bg-[#1a1a1a] p-6 rounded border border-[#00ff55] w-full max-w-md text-white h-[80vh] flex flex-col">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-[#00ff55] flex gap-2"><Shield size={20}/> BUSCAR EQUIPO</h3>
-                                    <button onClick={() => setShowTeamSearchModal(false)}><X size={20} className="text-gray-400"/></button>
-                                </div>
-                                <div className="flex gap-2 mb-4">
-                                    <input placeholder="Nombre del equipo..." className="flex-1 bg-black/50 p-2 rounded text-sm border border-gray-700" value={teamSearchQuery} onChange={e => setTeamSearchQuery(e.target.value)}/>
-                                    <button onClick={handleSearchTeams} className="bg-[#00ff55] text-black p-2 rounded"><Search size={16}/></button>
-                                </div>
+                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-[#00ff55] flex gap-2"><Shield size={20}/> BUSCAR EQUIPO</h3><button onClick={() => setShowTeamSearchModal(false)}><X size={20} className="text-gray-400"/></button></div>
+                                <div className="flex gap-2 mb-4"><input placeholder="Nombre del equipo..." className="flex-1 bg-black/50 p-2 rounded text-sm border border-gray-700" value={teamSearchQuery} onChange={e => setTeamSearchQuery(e.target.value)}/><button onClick={handleSearchTeams} className="bg-[#00ff55] text-black p-2 rounded"><Search size={16}/></button></div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
                                     {teamSearchResults.map(t => (
                                         <div key={t.id} className="flex justify-between items-center p-2 bg-gray-800 rounded">
-                                            <div>
-                                                <div className="font-bold text-sm">{t.name}</div>
-                                                <div className="text-xs text-gray-400">Capitán: {t.captainName}</div>
-                                            </div>
+                                            <div><div className="font-bold text-sm">{t.name}</div><div className="text-xs text-gray-400">Capitán: {t.captainName}</div></div>
                                             <button onClick={() => sendJoinRequest(t)} className="text-[#00ff55] text-xs border border-[#00ff55] px-2 py-1 rounded">Solicitar</button>
                                         </div>
                                     ))}
@@ -1020,12 +809,8 @@
                     {showInstallModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
                             <div className="bg-[#1a1a1a] p-6 rounded border border-[#00ff55] w-full max-w-sm text-center">
-                                <h3 className="text-white font-bold mb-4 flex justify-center items-center gap-2">
-                                    <Download size={20} className="text-[#00ff55]"/> INSTALAR APP
-                                </h3>
-                                <p className="text-gray-300 text-sm mb-4">
-                                    Para instalar <strong>El Enganche</strong> en tu dispositivo:
-                                </p>
+                                <h3 className="text-white font-bold mb-4 flex justify-center items-center gap-2"><Download size={20} className="text-[#00ff55]"/> INSTALAR APP</h3>
+                                <p className="text-gray-300 text-sm mb-4">Para instalar <strong>El Enganche</strong> en tu dispositivo:</p>
                                 <div className="text-left bg-black/30 p-3 rounded border border-gray-700 mb-4 text-xs text-gray-400 space-y-2">
                                     <p><strong className="text-white">📱 iPhone / iPad:</strong><br/>Toca el botón <span className="text-[#00ff55]">Compartir</span> <Share2 size={10} className="inline"/> y busca <span className="text-white">"Agregar a Inicio"</span>.</p>
                                     <p><strong className="text-white">📱 Android:</strong><br/>Toca el menú (3 puntos) y busca <span className="text-white">"Instalar aplicación"</span>.</p>
@@ -1035,7 +820,6 @@
                         </div>
                     )}
 
-                    {/* CONFIRMATION MODAL - NUEVO */}
                     {confirmation.show && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[110]">
                             <div className="bg-[#1a1a1a] p-6 rounded border border-red-500 w-full max-w-sm text-center shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-in zoom-in duration-200">
@@ -1050,36 +834,19 @@
                         </div>
                     )}
 
-                    {/* Bottom Nav Bar - Solo si está logueado */}
                     {user && (
                         <div className="fixed bottom-0 left-0 w-full bg-[#111] border-t border-gray-800 flex justify-around items-center h-16 z-50">
-                            <button onClick={() => setView('app')} className={`flex flex-col items-center gap-1 ${view === 'app' ? 'text-[#00ff55]' : 'text-gray-500'}`}>
-                                <Home size={20}/> <span className="text-[10px]">Inicio</span>
-                            </button>
-                            <button onClick={handleClickHeaderButton} className="flex flex-col items-center gap-1 text-gray-500 hover:text-white">
-                                <PlusCircle size={20}/> <span className="text-[10px]">{!myTeam ? "Crear" : "Publicar"}</span>
-                            </button>
-                            <button onClick={() => setView('profile')} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-[#00ff55]' : 'text-gray-500'}`}>
-                                <Shield size={20}/> <span className="text-[10px]">Mi Equipo</span>
-                            </button>
-                            <button onClick={() => setView('profile')} className="flex flex-col items-center gap-1 text-gray-500">
-                                <div className="w-5 h-5 rounded-full border border-current overflow-hidden">
-                                    {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User size={12} className="w-full h-full p-0.5"/>}
-                                </div>
-                                <span className="text-[10px]">Perfil</span>
-                            </button>
+                            <button onClick={() => setView('app')} className={`flex flex-col items-center gap-1 ${view === 'app' ? 'text-[#00ff55]' : 'text-gray-500'}`}><Home size={20}/> <span className="text-[10px]">Inicio</span></button>
+                            <button onClick={handleClickHeaderButton} className="flex flex-col items-center gap-1 text-gray-500 hover:text-white"><PlusCircle size={20}/> <span className="text-[10px]">{!myTeam ? "Crear" : "Publicar"}</span></button>
+                            <button onClick={() => setView('profile')} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-[#00ff55]' : 'text-gray-500'}`}><Shield size={20}/> <span className="text-[10px]">Mi Equipo</span></button>
+                            <button onClick={() => setView('profile')} className="flex flex-col items-center gap-1 text-gray-500"><div className="w-5 h-5 rounded-full border border-current overflow-hidden">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User size={12} className="w-full h-full p-0.5"/>}</div><span className="text-[10px]">Perfil</span></button>
                         </div>
                     )}
 
-                    {/* Footer original (oculto si hay bottom nav para evitar superposición visual fea) */}
                     {!user && (
                         <footer className="bg-[#0f0f0f] text-gray-500 text-xs text-center py-8 mt-12 border-t border-gray-800">
                             <p className="mb-3 font-medium text-gray-400">EL ENGANCHE © 2026</p>
-                            <div className="flex justify-center gap-6 mb-4 font-bold text-gray-600 uppercase tracking-wider">
-                                <span className="flex gap-1 items-center hover:text-[#00ff55] cursor-pointer"><FileText size={14}/> Reglamento</span>
-                                <span className="flex gap-1 items-center hover:text-[#00ff55] cursor-pointer"><HelpCircle size={14}/> Soporte</span>
-                                <span className="flex gap-1 items-center hover:text-[#00ff55] cursor-pointer"><LockIcon size={14}/> Privacidad</span>
-                            </div>
+                            <div className="flex justify-center gap-6 mb-4 font-bold text-gray-600 uppercase tracking-wider"><span>Reglamento</span><span>Soporte</span><span>Privacidad</span></div>
                         </footer>
                     )}
                 </div>
