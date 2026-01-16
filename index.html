@@ -684,7 +684,13 @@
                                                 </div>
                                                 <div className="text-right">
                                                     {m.type === 'rival' ? <span className="bg-black text-[#00ff55] px-2 py-1 rounded text-[10px] font-bold border border-[#00ff55]">RIVAL</span> : 
-                                                    <div className="flex flex-col items-center"><span className="font-bold text-lg leading-none">{m.missing}</span><span className="text-[9px] uppercase font-bold text-gray-500">Faltan</span></div>}
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="font-bold text-lg leading-none">{m.missing}</span>
+                                                        <span className="text-[9px] uppercase font-bold text-gray-500">Faltan</span>
+                                                    </div>}
+                                                    {m.type === 'player' && (
+                                                        <div className="text-xs text-[#006400] font-bold mt-1">Buscan: {m.position}</div>
+                                                    )}
                                                 </div>
                                                 <button onClick={() => handleJoinMatch(m)} className={`px-3 py-1.5 rounded text-xs font-bold border-b-2 ${m.playersSigned?.includes(user?.uid) ? 'bg-red-600 text-white border-red-800' : 'bg-[#008f45] text-white border-[#006400]'}`}>
                                                     {m.playersSigned?.includes(user?.uid) ? 'Salir' : 'Anotarme'}
@@ -772,6 +778,32 @@
 
                                     <input placeholder="Cancha" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
                                     <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
+                                    
+                                    {publishData.type === 'player' && (
+                                        <div className="grid grid-cols-2 gap-3 p-3 bg-gray-800/50 rounded border border-dashed border-gray-600">
+                                            <div className="space-y-1">
+                                                <label className="text-gray-400 text-xs font-bold ml-1">¿Cuántos?</label>
+                                                <input 
+                                                    type="number" 
+                                                    min="1" max="10"
+                                                    value={publishData.missing}
+                                                    onChange={(e) => setPublishData({...publishData, missing: e.target.value})}
+                                                    className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-3 text-sm focus:border-[#00ff55] outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-gray-400 text-xs font-bold ml-1">Puesto</label>
+                                                <select 
+                                                    value={publishData.position} 
+                                                    onChange={(e) => setPublishData({...publishData, position: e.target.value})}
+                                                    className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"
+                                                >
+                                                    <option>Cualquiera</option><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex gap-2">
                                         <button type="button" onClick={() => setShowPublishModal(false)} className="flex-1 text-gray-400 text-xs">Cancelar</button>
                                         <button type="submit" className="flex-1 bg-[#00ff55] text-black font-bold py-2 rounded text-xs">PUBLICAR</button>
