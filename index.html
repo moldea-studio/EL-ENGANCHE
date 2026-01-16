@@ -73,11 +73,8 @@
             console.error(error);
         };
 
-        // --- CONFIGURACIÓN FIREBASE ---
+        // --- CONFIGURACIÓN FIREBASE (TUS DATOS REALES) ---
         const getFirebaseConfig = () => {
-            if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
-            
-            // CONFIGURACIÓN REAL
             return {
                 apiKey: "AIzaSyC8att6xIu--GeDn7uY6gHkIrwUU1UhwpM",
                 authDomain: "el-enganche.firebaseapp.com",
@@ -100,17 +97,19 @@
             document.getElementById('error-display').innerText = "Error conectando con la base de datos. (Ver consola)";
         }
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'el-enganche-web';
+        const appId = 'el-enganche-web';
         const ADMIN_EMAILS = ["worlddigital2011@gmail.com", "admin@elenganche.com"];
-        const LA_PLATA_ZONES = [
-            "Todas", "La Plata (Casco Urbano)", "City Bell", "Villa Elisa", 
-            "Manuel B. Gonnet", "Arturo Seguí", "Ringuelet", "Tolosa", 
-            "Los Hornos", "San Carlos", "Villa Elvira", "Altos de San Lorenzo", 
-            "Villa Castells", "Joaquín Gorina", "José Hernández", "Lisandro Olmos", 
-            "Melchor Romero", "Abasto", "Etcheverry", "El Peligro", "Sicardi / Villa Garibaldi"
-        ];
+        
+        // --- ZONAS ORGANIZADAS POR REGIÓN ---
+        const ZONES_BY_AREA = {
+            "Casco Urbano": ["La Plata (Casco Urbano)"],
+            "Zona Norte": ["Arturo Seguí", "Villa Elisa", "City Bell", "Manuel B. Gonnet", "Ringuelet", "Tolosa", "Villa Castells", "Joaquín Gorina", "José Hernández"],
+            "Zona Oeste": ["San Carlos", "Los Hornos", "Lisandro Olmos", "Melchor Romero", "Abasto", "Etcheverry", "El Peligro"],
+            "Zona Sur": ["Villa Elvira", "Altos de San Lorenzo", "Sicardi / Villa Garibaldi"],
+            "Zona Este": ["Ensenada", "Berisso"]
+        };
 
-        // --- MOCK DATA ---
+        // --- MOCK DATA PARA SEMBRAR (SEEDING) ---
         const INITIAL_MATCHES = [
             { time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 1, position: 'Arquero', teamName: 'Los Rotos FC', urgent: true },
             { time: '20:30', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true },
@@ -141,11 +140,13 @@
             const [myTeam, setMyTeam] = useState(null);
             const [loading, setLoading] = useState(true);
             
+            // Modales
             const [showLoginModal, setShowLoginModal] = useState(false);
             const [showInviteModal, setShowInviteModal] = useState(false);
             const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
             const [showPublishModal, setShowPublishModal] = useState(false);
             
+            // Forms
             const [targetPlayer, setTargetPlayer] = useState(null);
             const [inviteData, setInviteData] = useState({ place: '', time: '' });
             const [newTeamName, setNewTeamName] = useState('');
@@ -182,9 +183,10 @@
                 init();
             }, []);
 
-            // --- DATA SYNC ---
+            // --- DATA SYNC & SEEDING ---
             useEffect(() => {
                 if (!user || !db) return;
+                
                 try {
                     const qTeam = collection(db, 'artifacts', appId, 'public', 'data', 'teams');
                     onSnapshot(qTeam, (s) => {
@@ -211,7 +213,8 @@
                         if (data.length === 0) seedDatabase();
                         else setMatches(data);
                         setLoading(false);
-                    }, () => {
+                    }, (err) => {
+                        console.error(err);
                         setMatches(INITIAL_MATCHES);
                         setLoading(false);
                     });
@@ -242,7 +245,7 @@
             // --- HANDLERS ---
             const handleGoogleLogin = async () => {
                 try { await signInWithPopup(auth, new GoogleAuthProvider()); setView('app'); }
-                catch (e) { alert("Error al iniciar sesión: " + e.message); }
+                catch (e) { alert("Error al iniciar sesión: " + e.message + "\n\n(Asegúrate de haber habilitado 'Google' en la sección Authentication de tu consola Firebase)"); }
             };
             const handleLogout = async () => { await signOut(auth); setView('landing'); setIsMenuOpen(false); };
             const handleGuest = () => setView('app');
@@ -275,16 +278,20 @@
                 if (!user) { setShowLoginModal(true); return; }
                 if (players.some(p => p.uid === user.uid)) return alert("Ya estás postulado.");
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'players'), {
-                    uid: user.uid, name: user.displayName, position: 'Polifuncional', zone: 'La Plata',
+                    uid: user.uid, name: user.displayName, position: 'Polifuncional', zone: 'La Plata (Casco Urbano)',
                     rating: 0, status: 'Disponible', createdAt: serverTimestamp()
                 });
             };
             
             const handleDeletePlayer = async (id) => {
-                if(confirm("¿Bajarme de la lista?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', id));
+                if (!user) return;
+                if ((isAdmin || players.find(p=>p.id===id)?.uid === user?.uid) && confirm("¿Retirar postulación de la lista?")) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', id));
+                }
             };
 
             const handleDeleteMatch = async (id) => {
+                if (!user) return;
                 if(isAdmin && confirm("¿Borrar?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'matches', id));
             };
 
@@ -300,7 +307,7 @@
             };
 
             const handleToggleMemberStatus = async (memberUid, currentStatus) => {
-                if (!isCaptain || !myTeam) return;
+                if (!isCaptain || !myTeam || !user) return;
                 const newStatus = currentStatus === 'active' ? 'injured' : 'active';
                 const updatedMembers = myTeam.members.map(m => m.uid === memberUid ? { ...m, status: newStatus } : m);
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teams', myTeam.id), { members: updatedMembers });
@@ -314,6 +321,7 @@
 
             const sendInvitation = async (e) => {
                 e.preventDefault();
+                if (!user) return;
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
                     fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name,
                     toUserId: targetPlayer.uid, toPlayerName: targetPlayer.name, ...inviteData, status: 'pending',
@@ -324,6 +332,7 @@
             };
 
             const handleRespondInvitation = async (inv, response) => {
+                if (!user) return;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invitations', inv.id), { status: response });
                 if (response === 'accepted') {
                     const teamRef = doc(db, 'artifacts', appId, 'public', 'data', 'teams', inv.teamId);
@@ -349,6 +358,18 @@
                 </div>
             );
 
+            // --- COMPONENTE HELPER: SELECTOR DE ZONAS ---
+            // Renderiza las opciones agrupadas por zona geográfica
+            const ZoneSelectOptions = () => (
+                <>
+                    {Object.entries(ZONES_BY_AREA).map(([region, zones]) => (
+                        <optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">
+                            {zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}
+                        </optgroup>
+                    ))}
+                </>
+            );
+
             // --- VISTAS ---
             
             // 1. LANDING
@@ -372,6 +393,7 @@
                                 </button>
                             ) : (
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 border border-gray-200">
+                                    {/* LOGO GOOGLE OFICIAL */}
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -511,8 +533,17 @@
                                     <div className="bg-gradient-to-r from-[#1b4d2e] to-[#2e7d32] px-4 py-3 rounded-t-lg border-b-2 border-[#4caf50] flex flex-wrap gap-2 justify-between items-center text-white">
                                         <h2 className="font-bold flex items-center gap-2"><Calendar size={20} className="text-[#00ff55]"/> PARTIDOS</h2>
                                         <div className="flex gap-2">
-                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setFormatFilter(e.target.value)}><option value="Todos">Fmt: Todos</option><option value="F5">F5</option><option value="F7">F7</option></select>
-                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setZoneFilter(e.target.value)}>{LA_PLATA_ZONES.map(z=><option key={z} value={z}>{z}</option>)}</select>
+                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setFormatFilter(e.target.value)}>
+                                                <option value="Todos">Fmt: Todos</option>
+                                                <option value="F5">F5</option>
+                                                <option value="F7">F7</option>
+                                                <option value="F9">F9</option>
+                                                <option value="F11">F11</option>
+                                            </select>
+                                            <select className="bg-black/30 rounded text-xs p-1 border border-white/20 outline-none" onChange={e => setZoneFilter(e.target.value)}>
+                                                <option value="Todas">Zonas: Todas</option>
+                                                <ZoneSelectOptions />
+                                            </select>
                                         </div>
                                     </div>
                                     <div className="bg-[#dce6dc] rounded-b-lg overflow-hidden text-gray-800">
@@ -589,6 +620,30 @@
                                 <h3 className="font-bold mb-4 text-[#00ff55]">PUBLICAR</h3>
                                 <form onSubmit={handlePublishMatch} className="space-y-3">
                                     <div className="flex gap-2"><button type="button" onClick={() => setPublishData({...publishData, type: 'rival'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='rival'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>RIVAL</button><button type="button" onClick={() => setPublishData({...publishData, type: 'player'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='player'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>JUGADOR</button></div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-gray-400 text-xs font-bold ml-1">Formato</label>
+                                            <select 
+                                                value={publishData.format} 
+                                                onChange={(e) => setPublishData({...publishData, format: e.target.value})}
+                                                className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"
+                                            >
+                                                <option>F5</option><option>F7</option><option>F9</option><option>F11</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-gray-400 text-xs font-bold ml-1">Zona</label>
+                                            <select 
+                                                value={publishData.zone} 
+                                                onChange={(e) => setPublishData({...publishData, zone: e.target.value})}
+                                                className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"
+                                            >
+                                                <ZoneSelectOptions />
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <input placeholder="Cancha" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
                                     <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
                                     <div className="flex gap-2">
