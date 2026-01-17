@@ -57,6 +57,10 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         #root { min-height: 100vh; display: flex; flex-direction: column; }
         #error-display { display: none; padding: 20px; color: #ff6b6b; background: #2d1b1b; text-align: center; }
+        
+        /* Animación para el modal de calificación */
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-animate { animation: fadeIn 0.2s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -79,7 +83,7 @@
             Link as LinkIcon, User, LogOut, Mail, Lock, Trash2, Ban, Trophy, 
             Activity, ArrowLeft, HelpCircle, FileText, Lock as LockIcon, Bell, 
             CheckCircle, XCircle, Send, Crown, UserPlus, Share2, Edit2, Save, MinusCircle,
-            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX
+            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX, Clock, MessageCircle, Beer
         } from 'https://esm.sh/lucide-react@0.294.0';
         
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -96,7 +100,6 @@
 
         window.onerror = function(message, source, lineno, colno, error) {
             console.error(error);
-            // Solo mostramos el error si es crítico, para no asustar con errores menores de red
             if (!message.includes("permission") && !message.includes("network")) {
                 const display = document.getElementById('error-display');
                 display.style.display = 'block';
@@ -141,16 +144,27 @@
             "Zona Este": ["Ensenada", "Berisso"]
         };
 
-        // DATOS FICTICIOS PARA INICIALIZAR LA APP
+        // --- GENERADOR DE FECHAS PARA DUMMY DATA ---
+        const today = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0]; // 2 días atrás para permitir calificar
+
         const INITIAL_MATCHES = [
-            { time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 1, position: 'Arquero', teamName: 'Los Rotos FC', urgent: true },
-            { time: '20:30', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true },
-            { time: '21:00', place: 'La Plaza', zone: 'City Bell', format: 'F5', type: 'player', missing: 2, position: 'Defensores', teamName: 'Inter CB', urgent: false },
+            // Partido Pasado (Para probar calificación)
+            { date: yesterday, time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 0, position: 'Arquero', teamName: 'Los Rotos FC', urgent: false, playersSigned: ['dummy_1', 'dummy_2'] },
+            // Partidos Futuros
+            { date: today, time: '21:00', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true },
+            { date: tomorrow, time: '19:00', place: 'La Plaza', zone: 'City Bell', format: 'F5', type: 'player', missing: 2, position: 'Defensores', teamName: 'Inter CB', urgent: false },
+            { date: tomorrow, time: '22:00', place: 'Estación Norte', zone: 'Ringuelet', format: 'F5', type: 'player', missing: 1, position: 'Cualquiera', teamName: 'La Máquina', urgent: false },
+            { date: today, time: '20:30', place: 'Complejo 44', zone: 'San Carlos', format: 'F9', type: 'rival', missing: 0, position: 'Equipo', teamName: 'San Carlos Jr', urgent: true },
         ];
+
         const INITIAL_PLAYERS = [
-            { name: 'Lucho M.', position: 'Arquero', zone: 'Villa Elisa', rating: 4, status: 'Disponible' },
-            { name: 'Juan P.', position: 'Medio', zone: 'La Plata (Casco Urbano)', rating: 5, status: 'Disponible' },
-            { name: 'Santi G.', position: 'Delantero', zone: 'Gonnet', rating: 3, status: 'Disponible' },
+            { uid: 'dummy_1', name: 'Lucho M.', position: 'Arquero', zone: 'Villa Elisa', rating: 4.5, ratingCount: 10, status: 'Disponible' },
+            { uid: 'dummy_2', name: 'El Distinto', position: 'Medio', zone: 'La Plata (Casco Urbano)', rating: 5.0, ratingCount: 3, status: 'Disponible' },
+            { uid: 'dummy_3', name: 'Santi G.', position: 'Delantero', zone: 'Gonnet', rating: 3.2, ratingCount: 5, status: 'Disponible' },
+            { uid: 'dummy_4', name: 'El Muro', position: 'Defensor', zone: 'Tolosa', rating: 4.0, ratingCount: 8, status: 'Lesionado' },
+            { uid: 'dummy_5', name: 'Alejo B.', position: 'Polifuncional', zone: 'City Bell', rating: 0, ratingCount: 0, status: 'Disponible' },
         ];
 
         const App = () => {
@@ -181,13 +195,21 @@
             const [showTeamSearchModal, setShowTeamSearchModal] = useState(false); 
             const [showInstallModal, setShowInstallModal] = useState(false);
             const [showMapModal, setShowMapModal] = useState(false); 
+            
+            // Modal de Calificación
+            const [showRatingModal, setShowRatingModal] = useState(false);
+            const [ratingMatch, setRatingMatch] = useState(null);
+            const [ratingTargetPlayer, setRatingTargetPlayer] = useState(null);
+            const [ratingStep, setRatingStep] = useState('list'); // 'list' o 'form'
+            const [ratings, setRatings] = useState({ game: 3, punctuality: 3, fairplay: 3, communication: 3, social: 3 });
+
             const [confirmation, setConfirmation] = useState({ show: false, text: '', action: null });
             
             // Forms
             const [targetPlayer, setTargetPlayer] = useState(null);
             const [inviteData, setInviteData] = useState({ place: '', time: '' });
             const [newTeamName, setNewTeamName] = useState('');
-            const [publishData, setPublishData] = useState({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '' });
+            const [publishData, setPublishData] = useState({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '', date: '' });
             const [neededPositions, setNeededPositions] = useState(['Cualquiera']);
             
             const [searchQuery, setSearchQuery] = useState(''); 
@@ -195,12 +217,17 @@
             const [teamSearchQuery, setTeamSearchQuery] = useState(''); 
             const [teamSearchResults, setTeamSearchResults] = useState([]); 
             const [isEditingPosition, setIsEditingPosition] = useState(false);
+            
+            // Edición de Apodo
+            const [isEditingNickname, setIsEditingNickname] = useState(false);
+            const [nicknameInput, setNicknameInput] = useState('');
 
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
             const myMatches = user ? matches.filter(m => m.playersSigned?.includes(user.uid)) : [];
             const myOrganizedMatches = user ? matches.filter(m => m.createdBy === user.uid) : [];
             const myPlayerProfile = user ? players.find(p => p.uid === user.uid) : null;
             const userRating = myPlayerProfile?.rating || 0;
+            const userRatingCount = myPlayerProfile?.ratingCount || 0;
             const pendingInvitations = invitations.filter(inv => inv.status === 'pending');
             const isCaptain = myTeam && myTeam.captainId === user?.uid;
 
@@ -220,11 +247,17 @@
                                 const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', u.uid);
                                 const snap = await getDoc(userRef);
                                 if (!snap.exists()) {
+                                    // Si es usuario nuevo, seteamos el apodo igual al displayName inicial
                                     await setDoc(userRef, { 
-                                        uid: u.uid, name: u.displayName, email: u.email, position: 'Polifuncional',
-                                        searchName: u.displayName ? u.displayName.toLowerCase() : '', createdAt: serverTimestamp() 
+                                        uid: u.uid, 
+                                        name: u.displayName, 
+                                        nickname: u.displayName, // Apodo por defecto
+                                        email: u.email, 
+                                        position: 'Polifuncional',
+                                        searchName: u.displayName ? u.displayName.toLowerCase() : '', 
+                                        createdAt: serverTimestamp() 
                                     });
-                                    setUserProfile({ position: 'Polifuncional' });
+                                    setUserProfile({ position: 'Polifuncional', nickname: u.displayName });
                                 } else {
                                     setUserProfile(snap.data());
                                 }
@@ -266,15 +299,14 @@
                     onSnapshot(qM, (s) => {
                         const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                         if (data.length === 0) {
-                            console.log("Base de datos de partidos vacía. Sembrando datos...");
-                            seedDatabase().catch(e => console.error("Error al sembrar partidos:", e));
+                            seedDatabase();
                         } else {
-                            setMatches(data);
+                            const sorted = data.sort((a,b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time));
+                            setMatches(sorted);
                         }
                         setLoading(false);
                     }, (error) => {
-                        console.error("Error cargando partidos:", error);
-                        setMatches(INITIAL_MATCHES); // Fallback Visual
+                        setMatches(INITIAL_MATCHES); 
                         setLoading(false);
                     });
 
@@ -282,17 +314,14 @@
                     onSnapshot(qP, (s) => {
                         const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                         if (data.length === 0) {
-                            console.log("Base de datos de jugadores vacía. Sembrando datos...");
-                            seedPlayers().catch(e => console.error("Error al sembrar jugadores:", e));
+                            seedPlayers();
                         } else {
                             setPlayers(data);
                         }
                     }, (error) => {
-                        console.error("Error cargando jugadores:", error);
-                        setPlayers(INITIAL_PLAYERS); // Fallback Visual
+                        setPlayers(INITIAL_PLAYERS); 
                     });
                 } catch(e) { 
-                    console.error("Error general:", e);
                     setMatches(INITIAL_MATCHES);
                     setPlayers(INITIAL_PLAYERS);
                     setLoading(false); 
@@ -300,14 +329,13 @@
             };
 
             const seedDatabase = async () => {
-                // Función de seguridad para no duplicar si ya hay datos
                 const matchesRef = collection(db, 'artifacts', appId, 'public', 'data', 'matches');
                 const snap = await getDocs(matchesRef);
                 if (snap.size === 0) {
                     for (const match of INITIAL_MATCHES) { 
-                        await addDoc(matchesRef, { ...match, playersSigned: [], createdBy: 'system', createdAt: serverTimestamp() }); 
+                        const creator = (match.teamName === 'Los Rotos FC' && user) ? user.uid : 'system';
+                        await addDoc(matchesRef, { ...match, createdBy: creator, createdAt: serverTimestamp() }); 
                     }
-                    console.log("¡Partidos sembrados correctamente!");
                 }
             };
             const seedPlayers = async () => {
@@ -317,9 +345,121 @@
                     for (const p of INITIAL_PLAYERS) { 
                         await addDoc(playersRef, { ...p, uid: 'dummy_'+Math.random(), createdAt: serverTimestamp() }); 
                     }
-                    console.log("¡Jugadores sembrados correctamente!");
                 }
             };
+
+            // --- NICKNAME LOGIC ---
+            const handleStartEditingNickname = () => {
+                setNicknameInput(userProfile?.nickname || user.displayName || '');
+                setIsEditingNickname(true);
+            };
+
+            const handleSaveNickname = async () => {
+                const newNickname = nicknameInput.trim();
+                if (!newNickname) return alert("El apodo no puede estar vacío.");
+                if (newNickname.length < 3) return alert("El apodo debe tener al menos 3 letras.");
+                
+                // Verificación de duplicados
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('nickname', '==', newNickname));
+                const snap = await getDocs(q);
+                
+                // Filtramos si el documento encontrado es el mismo usuario (por si guarda el mismo nombre)
+                const isTaken = snap.docs.some(d => d.id !== user.uid);
+
+                if (isTaken) {
+                    alert(`¡El apodo "${newNickname}" ya está en uso! Por favor, elige otro (ej: ${newNickname}10).`);
+                    return;
+                }
+
+                try {
+                    // Actualizar Perfil de Usuario
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                    await updateDoc(userRef, { 
+                        nickname: newNickname,
+                        searchName: newNickname.toLowerCase()
+                    });
+                    
+                    // Actualizar si está en la lista de jugadores libres
+                    const qPlayer = query(collection(db, 'artifacts', appId, 'public', 'data', 'players'), where('uid', '==', user.uid));
+                    const playerSnap = await getDocs(qPlayer);
+                    playerSnap.forEach(async (d) => {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', d.id), { name: newNickname });
+                    });
+
+                    setUserProfile({ ...userProfile, nickname: newNickname });
+                    setIsEditingNickname(false);
+                    alert("¡Apodo actualizado correctamente!");
+                } catch(e) {
+                    alert("Error al guardar: " + e.message);
+                }
+            };
+
+            // --- RATING LOGIC ---
+            const openRatingModal = (match) => {
+                setRatingMatch(match);
+                setRatingStep('list');
+                setShowRatingModal(true);
+            };
+
+            const selectPlayerToRate = (playerId) => {
+                let p = players.find(x => x.uid === playerId);
+                if (!p) {
+                    p = { uid: playerId, name: 'Jugador Invitado' }; 
+                }
+                setRatingTargetPlayer(p);
+                setRatings({ game: 3, punctuality: 3, fairplay: 3, communication: 3, social: 3 });
+                setRatingStep('form');
+            };
+
+            const submitRating = async () => {
+                if (!ratingTargetPlayer || !ratingTargetPlayer.uid.startsWith('dummy')) {
+                    const playerDoc = players.find(p => p.uid === ratingTargetPlayer.uid);
+                    if (playerDoc) {
+                        const weightedScore = (ratings.game * 0.5) + 
+                                              (ratings.punctuality * 0.125) + 
+                                              (ratings.fairplay * 0.125) + 
+                                              (ratings.communication * 0.125) + 
+                                              (ratings.social * 0.125);
+                        
+                        const currentRating = playerDoc.rating || 0;
+                        const currentCount = playerDoc.ratingCount || 0;
+                        const newCount = currentCount + 1;
+                        const newRating = ((currentRating * currentCount) + weightedScore) / newCount;
+
+                        try {
+                            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', playerDoc.id), {
+                                rating: newRating,
+                                ratingCount: newCount
+                            });
+                            alert(`¡Calificación enviada! Nuevo promedio: ${newRating.toFixed(1)}`);
+                        } catch(e) {
+                            alert("Error al guardar calificación: " + e.message);
+                        }
+                    } else {
+                        alert("Este jugador es de prueba y no tiene perfil real para guardar.");
+                    }
+                }
+                setShowRatingModal(false);
+            };
+
+            const RatingStars = ({ value, onChange, label, icon: Icon }) => (
+                <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-gray-300 text-xs font-bold flex items-center gap-2"><Icon size={14} className="text-[#00ff55]"/> {label}</span>
+                        <span className="text-[#00ff55] font-black text-sm">{value}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <button 
+                                key={star} 
+                                type="button"
+                                onClick={() => onChange(star)}
+                                className={`flex-1 h-2 rounded-full transition-all ${star <= value ? 'bg-[#00ff55] shadow-[0_0_5px_rgba(0,255,85,0.5)]' : 'bg-gray-700'}`}
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
 
             // --- HANDLERS ---
             const handleGoogleLogin = async () => {
@@ -372,10 +512,10 @@
                     const positionString = isRival ? 'Equipo Completo' : neededPositions.join(', ');
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), {
                         ...publishData, missing: missingCount, position: positionString, 
-                        teamName: myTeam ? myTeam.name : (user.displayName + " Team"),
+                        teamName: myTeam ? myTeam.name : (userProfile?.nickname || user.displayName) + " Team",
                         urgent: false, playersSigned: [], createdBy: user.uid, createdAt: serverTimestamp()
                     });
-                    setPublishData({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '' });
+                    setPublishData({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '', date: '' });
                     setNeededPositions(['Cualquiera']);
                     setShowPublishModal(false);
                     alert("¡Partido publicado exitosamente!");
@@ -388,8 +528,11 @@
                 setSubmitting(true);
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'players'), {
-                        uid: user.uid, name: user.displayName, position: userProfile?.position || 'Polifuncional', zone: 'La Plata',
-                        rating: 0, status: 'Disponible', createdAt: serverTimestamp()
+                        uid: user.uid, 
+                        name: userProfile?.nickname || user.displayName, // Usar apodo
+                        position: userProfile?.position || 'Polifuncional', 
+                        zone: 'La Plata',
+                        rating: 0, ratingCount: 0, status: 'Disponible', createdAt: serverTimestamp()
                     });
                     alert("¡Te has postulado correctamente!");
                 } catch(err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
@@ -426,8 +569,9 @@
                 setSubmitting(true);
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
-                        name: newTeamName, captainId: user.uid, captainName: user.displayName,
-                        members: [{ uid: user.uid, name: user.displayName, role: 'captain', status: 'active' }],
+                        name: newTeamName, captainId: user.uid, 
+                        captainName: userProfile?.nickname || user.displayName, // Usar apodo del capitán
+                        members: [{ uid: user.uid, name: userProfile?.nickname || user.displayName, role: 'captain', status: 'active' }],
                         searchName: newTeamName.toLowerCase(), createdAt: serverTimestamp()
                     });
                     setNewTeamName(''); setShowCreateTeamModal(false); setView('team');
@@ -438,17 +582,15 @@
                 if (!user) return;
                 const demoPlayers = [{ uid: 'd1', name: 'Esteban', role: 'player', status: 'active' }, { uid: 'd2', name: 'Pedro', role: 'player', status: 'active' }];
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
-                    name: "Dream Team (Demo)", captainId: user.uid, captainName: user.displayName,
-                    members: [{ uid: user.uid, name: user.displayName, role: 'captain', status: 'active' }, ...demoPlayers],
+                    name: "Dream Team (Demo)", captainId: user.uid, captainName: userProfile?.nickname || user.displayName,
+                    members: [{ uid: user.uid, name: userProfile?.nickname || user.displayName, role: 'captain', status: 'active' }, ...demoPlayers],
                     searchName: "dream team demo", createdAt: serverTimestamp()
                 });
                 alert("Equipo Demo Generado!");
             };
             
-            // MODIFIED: Allow self-update
             const handleToggleMemberStatus = async (memberUid, currentStatus) => {
                 if (!myTeam || !user) return;
-                // Allow captain OR user themselves
                 if (isCaptain || user.uid === memberUid) {
                     const newStatus = currentStatus === 'active' ? 'injured' : 'active';
                     const updatedMembers = myTeam.members.map(m => m.uid === memberUid ? { ...m, status: newStatus } : m);
@@ -460,6 +602,7 @@
 
             const handleSearchUsers = async (e) => {
                 e.preventDefault(); if (!searchQuery.trim()) return;
+                // Búsqueda por Apodo (searchName está en minúsculas)
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('searchName', '>=', searchQuery.toLowerCase()), where('searchName', '<=', searchQuery.toLowerCase() + '\uf8ff'));
                 const snaps = await getDocs(q); setSearchResults(snaps.docs.map(d => d.data()));
             };
@@ -470,25 +613,38 @@
             };
 
             const handleShareApp = () => {
-                // Texto de compartir actualizado
                 const text = "¡Sumate a El Capitán! La app para organizar partidos y encontrar equipo en La Plata. Descargala acá:";
-                
-                // --- IMPORTANTE: CAMBIAR ESTO CUANDO TENGAS EL LINK DE DRIVE ---
-                // Cuando tengas el link del APK en Drive, borra la línea de abajo y descomenta la siguiente poniendo tu link:
+                // --- LINK A DRIVE ---
                 const url = window.location.href; 
                 // const url = "https://drive.google.com/file/d/TU-LINK-DE-DRIVE/view";
-                
                 window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
             };
 
             const sendSystemInvite = async (targetUser) => {
                 if (!user || !myTeam) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name, toUserId: targetUser.uid, toPlayerName: targetUser.name, place: "Fichaje", time: "General", status: 'pending', createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { 
+                    type: 'recruit', 
+                    fromUserId: user.uid, 
+                    fromName: userProfile?.nickname || user.displayName, // Quien invita
+                    teamId: myTeam.id, 
+                    teamName: myTeam.name, 
+                    toUserId: targetUser.uid, 
+                    toPlayerName: targetUser.nickname || targetUser.name, // A quien invito
+                    place: "Fichaje", time: "General", status: 'pending', createdAt: serverTimestamp() 
+                });
                 alert("Solicitud de fichaje enviada internamente.");
             };
             const sendJoinRequest = async (targetTeam) => {
                 if (!user) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'join_request', fromUserId: user.uid, fromName: user.displayName, teamId: targetTeam.id, teamName: targetTeam.name, toUserId: targetTeam.captainId, status: 'pending', createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { 
+                    type: 'join_request', 
+                    fromUserId: user.uid, 
+                    fromName: userProfile?.nickname || user.displayName, // Quien solicita
+                    teamId: targetTeam.id, 
+                    teamName: targetTeam.name, 
+                    toUserId: targetTeam.captainId, 
+                    status: 'pending', createdAt: serverTimestamp() 
+                });
                 alert("Solicitud enviada"); setShowTeamSearchModal(false);
             };
             const openInviteModal = (player) => {
@@ -505,7 +661,7 @@
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
                         type: 'recruit',
                         fromUserId: user.uid,
-                        fromName: user.displayName,
+                        fromName: userProfile?.nickname || user.displayName,
                         teamId: myTeam.id,
                         teamName: myTeam.name,
                         toUserId: targetPlayer.uid,
@@ -533,15 +689,30 @@
                     const snap = await getDoc(teamRef);
                     if (snap.exists() && !snap.data().members.some(m => m.uid === (inv.type === 'join_request' ? inv.fromUserId : user.uid))) {
                         const uidToAdd = inv.type === 'join_request' ? inv.fromUserId : user.uid;
-                        const nameToAdd = inv.type === 'join_request' ? inv.fromName : user.displayName;
+                        const nameToAdd = inv.type === 'join_request' ? inv.fromName : (userProfile?.nickname || user.displayName);
                         await updateDoc(teamRef, { members: arrayUnion({ uid: uidToAdd, name: nameToAdd, role: 'player', status: 'active' }) });
                         alert(`¡${nameToAdd} se unió a ${inv.teamName}!`);
                     }
                 }
             };
             const mockAction = (msg) => { if(!user) return setShowLoginModal(true); alert(msg); }
-            const StarRating = ({ rating }) => (<div className="flex gap-0.5">{[...Array(5)].map((_, i) => (<Star key={i} size={10} className={i < rating ? 'fill-yellow-400 text-yellow-600' : 'fill-gray-400 text-gray-500'} />))}</div>);
+            const StarRatingDisplay = ({ rating }) => (<div className="flex gap-0.5">{[...Array(5)].map((_, i) => (<Star key={i} size={10} className={i < Math.round(rating) ? 'fill-yellow-400 text-yellow-600' : 'fill-gray-600 text-gray-700'} />))}</div>);
             const ZoneSelectOptions = () => (<>{Object.entries(ZONES_BY_AREA).map(([region, zones]) => (<optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">{zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}</optgroup>))}</>);
+
+            // Componente auxiliar para botones del header móvil
+            const MobileHeaderButton = ({ icon: Icon, label, onClick, highlight }) => (
+                <button 
+                    onClick={onClick} 
+                    className={`flex flex-col items-center justify-center py-2 rounded-lg transition-all active:scale-95 border ${
+                        highlight 
+                        ? 'bg-[#00ff55] text-black border-[#00cc44] shadow-[0_0_10px_rgba(0,255,85,0.3)]' 
+                        : 'bg-[#1a1a1a] text-gray-300 border-gray-800 hover:border-gray-600 hover:text-white'
+                    }`}
+                >
+                    <Icon size={18} className={highlight ? "mb-1 text-black" : "mb-1 text-[#00ff55]"} />
+                    <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+                </button>
+            );
 
             // --- VISTAS ---
             if (view === 'landing') {
@@ -557,7 +728,7 @@
                         </div>
                         <div className="z-10 w-full max-w-sm space-y-4">
                             {user ? (
-                                <button onClick={() => setView('app')} className="w-full bg-[#00ff55] hover:bg-white text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,85,0.4)] flex items-center justify-center gap-2 uppercase tracking-wide transition-all"><User size={24}/> Continuar como {user.displayName?.split(' ')[0]}</button>
+                                <button onClick={() => setView('app')} className="w-full bg-[#00ff55] hover:bg-white text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,85,0.4)] flex items-center justify-center gap-2 uppercase tracking-wide transition-all"><User size={24}/> Continuar como {userProfile?.nickname || user.displayName?.split(' ')[0]}</button>
                             ) : (
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 border border-gray-200">
                                     <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
@@ -571,21 +742,6 @@
             }
 
             const filteredMatches = matches.filter(m => (formatFilter === 'Todos' || m.format === formatFilter) && (zoneFilter === 'Todas' || m.zone === zoneFilter));
-
-            // Componente auxiliar para botones del header móvil (para mantener limpieza)
-            const MobileHeaderButton = ({ icon: Icon, label, onClick, highlight }) => (
-                <button 
-                    onClick={onClick} 
-                    className={`flex flex-col items-center justify-center py-2 rounded-lg transition-all active:scale-95 border ${
-                        highlight 
-                        ? 'bg-[#00ff55] text-black border-[#00cc44] shadow-[0_0_10px_rgba(0,255,85,0.3)]' 
-                        : 'bg-[#1a1a1a] text-gray-300 border-gray-800 hover:border-gray-600 hover:text-white'
-                    }`}
-                >
-                    <Icon size={18} className={highlight ? "mb-1 text-black" : "mb-1 text-[#00ff55]"} />
-                    <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
-                </button>
-            );
 
             return (
                 <div className="flex-1 flex flex-col">
@@ -717,7 +873,26 @@
                                 <div className="bg-[#1a1a1a] p-6 rounded-lg border border-gray-800 flex flex-col sm:flex-row items-center gap-6 relative">
                                     <div className="w-24 h-24 rounded-full border-4 border-[#00ff55] overflow-hidden bg-black">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User className="w-full h-full p-4 text-gray-500"/>}</div>
                                     <div className="text-center sm:text-left flex-1">
-                                        <h1 className="text-3xl font-black italic">{user.displayName}</h1>
+                                        {/* --- EDICIÓN DE APODO --- */}
+                                        <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+                                            {isEditingNickname ? (
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        className="bg-black text-white text-lg font-black italic p-1 rounded border border-[#00ff55]" 
+                                                        value={nicknameInput} 
+                                                        onChange={(e) => setNicknameInput(e.target.value)} 
+                                                    />
+                                                    <button onClick={handleSaveNickname} className="bg-[#00ff55] text-black p-1.5 rounded"><Save size={16}/></button>
+                                                    <button onClick={() => setIsEditingNickname(false)} className="bg-gray-700 text-white p-1.5 rounded"><X size={16}/></button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <h1 className="text-3xl font-black italic text-white">{userProfile?.nickname || user.displayName}</h1>
+                                                    <button onClick={handleStartEditingNickname} className="text-gray-500 hover:text-[#00ff55]"><Edit2 size={16}/></button>
+                                                </>
+                                            )}
+                                        </div>
+                                        
                                         <p className="text-gray-400 text-sm">{user.email}</p>
                                         <div className="flex gap-3 justify-center sm:justify-start mt-3 items-center">
                                             {isEditingPosition ? (
@@ -731,14 +906,37 @@
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800"><div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Calendar size={14} className="text-[#00ff55]"/> Organizados</div><div className="text-3xl font-black text-white">{myOrganizedMatches.length}</div></div>
-                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800"><div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Star size={14} className="text-yellow-500"/> Calificación</div><div className="text-3xl font-black text-white">{userRating.toFixed(1)}</div></div>
+                                    <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800"><div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase mb-1"><Star size={14} className="text-yellow-500"/> Calificación</div><div className="text-3xl font-black text-white">{userRating.toFixed(1)} <span className="text-[10px] text-gray-500">({userRatingCount})</span></div></div>
                                 </div>
                                 {myOrganizedMatches.length > 0 && (
                                     <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 overflow-hidden">
                                         <div className="bg-gray-800 px-4 py-3 border-b border-gray-700 font-bold text-white flex gap-2 items-center"><ClipboardList size={16} className="text-[#00ff55]"/> Mis Publicaciones</div>
-                                        {myOrganizedMatches.map(m => (
-                                            <div key={m.id} className="p-3 border-b border-gray-700 flex justify-between items-center"><div className="text-xs text-gray-300">{m.time} - {m.place}</div><button onClick={() => handleDeleteMatch(m.id)} className="text-red-500"><Trash2 size={14}/></button></div>
-                                        ))}
+                                        {myOrganizedMatches.map(m => {
+                                            // Check si el partido ya pasó (más de 24hs o fecha anterior)
+                                            // Simplificación: si la fecha del partido es menor a hoy, permite calificar
+                                            const matchDate = new Date(m.date + 'T' + m.time);
+                                            const now = new Date();
+                                            const canRate = now > matchDate;
+
+                                            return (
+                                                <div key={m.id} className="p-3 border-b border-gray-700 flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="text-xs text-gray-300">
+                                                            <span className="font-bold text-[#00ff55]">{m.date}</span> - {m.time} | {m.place}
+                                                        </div>
+                                                        <button onClick={() => handleDeleteMatch(m.id)} className="text-red-500"><Trash2 size={14}/></button>
+                                                    </div>
+                                                    {canRate && m.playersSigned && m.playersSigned.length > 0 && (
+                                                        <button 
+                                                            onClick={() => openRatingModal(m)}
+                                                            className="bg-yellow-600/20 text-yellow-500 border border-yellow-600/50 rounded py-1.5 text-xs font-bold flex items-center justify-center gap-2 hover:bg-yellow-600/30 transition-colors"
+                                                        >
+                                                            <Star size={12} /> CALIFICAR PENDIENTES
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                                 <button onClick={handleLogout} className="w-full py-4 text-red-500 font-bold text-xs uppercase bg-black/20 hover:bg-red-900/20 border border-red-900/30 rounded">Cerrar Sesión</button>
@@ -760,7 +958,14 @@
                                          filteredMatches.map(m => (
                                             <div key={m.id} className="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-white transition-colors">
                                                 <div>
-                                                    <div className="font-bold text-sm flex gap-2 items-center">{m.teamName} <span className="bg-black text-[#00ff55] text-[10px] px-1 rounded">{m.format}</span></div>
+                                                    <div className="font-bold text-sm flex gap-2 items-center">
+                                                        {m.teamName} 
+                                                        <span className="bg-black text-[#00ff55] text-[10px] px-1 rounded">{m.format}</span>
+                                                        {/* Etiqueta de fecha */}
+                                                        <span className={`text-[9px] px-1.5 rounded font-bold uppercase ${m.date === today ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'}`}>
+                                                            {m.date === today ? 'HOY' : m.date === tomorrow ? 'MAÑANA' : m.date}
+                                                        </span>
+                                                    </div>
                                                     <div className="text-xs text-gray-600 flex gap-1 items-center mt-0.5"><MapPin size={10}/> {m.place} | {m.zone}</div>
                                                     <div className="text-xs font-mono text-green-800 font-bold mt-1">⏰ {m.time}</div>
                                                 </div>
@@ -783,7 +988,10 @@
                                             <div key={p.id} className="bg-white p-2 rounded shadow-sm flex justify-between items-center">
                                                 <div className="flex gap-2 items-center">
                                                     <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center font-bold text-gray-700">{p.name[0]}</div>
-                                                    <div><div className="font-bold text-xs uppercase">{p.name}</div><div className="text-[10px] text-gray-500">{p.position}</div></div>
+                                                    <div>
+                                                        <div className="font-bold text-xs uppercase flex items-center gap-1">{p.name} <span className="text-[9px] bg-yellow-100 text-yellow-800 px-1 rounded flex items-center">★ {p.rating ? p.rating.toFixed(1) : '-'}</span></div>
+                                                        <div className="text-[10px] text-gray-500">{p.position}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="flex gap-2 items-center">
                                                     {isAdmin && (<button onClick={() => handleDeletePlayer(p.id)} className="p-1.5 rounded bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40" title="Borrar jugador (Admin)"><Trash2 size={14}/></button>)}
@@ -797,6 +1005,60 @@
                             </>
                         )}
                     </main>
+
+                    {/* --- MODALES --- */}
+
+                    {showRatingModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[120]">
+                            <div className="bg-[#1a1a1a] p-6 rounded border border-[#00ff55] w-full max-w-sm text-white modal-animate flex flex-col max-h-[90vh]">
+                                {ratingStep === 'list' ? (
+                                    <>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="font-bold text-[#00ff55] flex gap-2 items-center"><Star size={20}/> CALIFICAR JUGADORES</h3>
+                                            <button onClick={() => setShowRatingModal(false)}><X size={20} className="text-gray-400"/></button>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mb-4">Selecciona un jugador del partido <strong>{ratingMatch?.teamName}</strong> para evaluar su desempeño.</p>
+                                        <div className="flex-1 overflow-y-auto space-y-2">
+                                            {ratingMatch?.playersSigned?.map((playerId, idx) => {
+                                                // Buscar nombre del jugador (mock o real)
+                                                const pReal = players.find(p => p.uid === playerId);
+                                                const pName = pReal ? pReal.name : `Jugador Invitado ${idx+1}`;
+                                                return (
+                                                    <button 
+                                                        key={playerId} 
+                                                        onClick={() => selectPlayerToRate(playerId)}
+                                                        className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 flex justify-between items-center group"
+                                                    >
+                                                        <span className="font-bold text-sm group-hover:text-white text-gray-300">{pName}</span>
+                                                        <ChevronRight size={16} className="text-[#00ff55]"/>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <button onClick={() => setRatingStep('list')} className="text-gray-400 hover:text-white"><ArrowLeft size={20}/></button>
+                                            <h3 className="font-bold text-white text-sm">{ratingTargetPlayer?.name}</h3>
+                                            <div className="w-5"></div> 
+                                        </div>
+                                        <div className="bg-[#002200] p-2 rounded text-center text-xs text-[#00ff55] font-bold mb-4 border border-[#00ff55]/30">EL OJO DEL CAPITÁN 👁️</div>
+                                        
+                                        <div className="flex-1 overflow-y-auto pr-2">
+                                            <RatingStars value={ratings.game} onChange={(v)=>setRatings({...ratings, game: v})} label="Juego (50%)" icon={Activity} />
+                                            <RatingStars value={ratings.punctuality} onChange={(v)=>setRatings({...ratings, punctuality: v})} label="Puntualidad" icon={Clock} />
+                                            <RatingStars value={ratings.fairplay} onChange={(v)=>setRatings({...ratings, fairplay: v})} label="Fair Play" icon={Swords} />
+                                            <RatingStars value={ratings.communication} onChange={(v)=>setRatings({...ratings, communication: v})} label="Comunicación" icon={MessageCircle} />
+                                            <RatingStars value={ratings.social} onChange={(v)=>setRatings({...ratings, social: v})} label="Tercer Tiempo" icon={Beer} />
+                                        </div>
+
+                                        <button onClick={submitRating} className="w-full bg-[#00ff55] text-black font-black py-3 rounded mt-4 shadow-[0_0_15px_rgba(0,255,85,0.4)]">CONFIRMAR CALIFICACIÓN</button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {showLoginModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
@@ -821,6 +1083,7 @@
                                         <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Formato</label><select value={publishData.format} onChange={(e) => setPublishData({...publishData, format: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><option>F5</option><option>F7</option><option>F9</option><option>F11</option></select></div>
                                         <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Zona</label><select value={publishData.zone} onChange={(e) => setPublishData({...publishData, zone: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><ZoneSelectOptions /></select></div>
                                     </div>
+                                    <input type="date" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.date} onChange={e=>setPublishData({...publishData, date:e.target.value})} required/>
                                     <input placeholder="Cancha" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
                                     <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
                                     {publishData.type === 'player' && (
