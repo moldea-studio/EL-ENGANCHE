@@ -14,20 +14,15 @@
     <link rel="icon" type="image/png" id="favicon">
     <link rel="manifest" id="manifest-placeholder">
 
-    <!-- GENERADOR DE ÍCONO AUTOMÁTICO -->
+    <!-- CONFIGURACIÓN DE ÍCONOS REALES -->
     <script>
         (function() {
-            const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-                <rect width="512" height="512" fill="#111827"/>
-                <circle cx="256" cy="256" r="220" fill="#00ff55"/>
-                <circle cx="256" cy="256" r="180" fill="#111827"/>
-                <circle cx="256" cy="256" r="140" fill="#111827" stroke="#00ff55" stroke-width="20"/>
-                <path d="M256 180 L300 240 L280 300 H232 L212 240 Z" fill="#00ff55"/>
-                <circle cx="256" cy="256" r="30" fill="#111827"/>
-            </svg>`;
-            const iconUrl = "data:image/svg+xml;base64," + btoa(iconSvg);
+            // Logo cuadrado para ícono de App y Favicon
+            const iconUrl = "https://i.imgur.com/evLI09R.png";
+            
             document.getElementById('apple-icon').href = iconUrl;
             document.getElementById('favicon').href = iconUrl;
+            
             const manifest = {
                 "name": "El Enganche",
                 "short_name": "El Enganche",
@@ -37,8 +32,8 @@
                 "theme_color": "#00ff55",
                 "orientation": "portrait",
                 "icons": [
-                    { "src": iconUrl, "sizes": "192x192", "type": "image/svg+xml" },
-                    { "src": iconUrl, "sizes": "512x512", "type": "image/svg+xml" }
+                    { "src": iconUrl, "sizes": "192x192", "type": "image/png" },
+                    { "src": iconUrl, "sizes": "512x512", "type": "image/png" }
                 ]
             };
             const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
@@ -470,10 +465,12 @@
                 return (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#003300] to-[#001a00] relative overflow-hidden">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(0,255,85,0.1),_transparent_70%)]"></div>
-                        <div className="z-10 mb-12 transform hover:scale-105 transition-transform duration-500">
-                            <div className="inline-flex p-6 bg-black/30 rounded-full border-4 border-[#00ff55] shadow-[0_0_50px_rgba(0,255,85,0.4)] mb-6"><LinkIcon size={64} className="text-[#00ff55] -rotate-45" /></div>
-                            <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white drop-shadow-2xl">EL <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00ff55] to-[#ccffcc]">ENGANCHE</span></h1>
-                            <p className="text-gray-400 uppercase tracking-widest text-xs sm:text-sm mt-4 font-bold">Fútbol Amateur La Plata</p>
+                        <div className="z-10 mb-12 transform hover:scale-105 transition-transform duration-500 flex flex-col items-center">
+                            <img 
+                                src="https://i.imgur.com/F7p7sXT.png" 
+                                alt="El Enganche" 
+                                className="w-64 sm:w-80 object-contain drop-shadow-[0_0_15px_rgba(0,255,85,0.3)]" 
+                            />
                         </div>
                         <div className="z-10 w-full max-w-sm space-y-4">
                             {user ? (
@@ -497,7 +494,9 @@
                     <header className="bg-gradient-to-r from-[#003300] to-[#004d26] border-b-4 border-[#00ff55] sticky top-0 z-50 shadow-xl">
                         <div className="max-w-6xl mx-auto px-3 h-16 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="font-black italic text-2xl tracking-tighter cursor-pointer flex items-center" onClick={() => setView('landing')}>EL <span className="text-[#00ff55]">ENGANCHE</span> <LinkIcon size={16} className="text-[#00ff55] -rotate-45 ml-1"/></div>
+                                <div className="cursor-pointer flex items-center" onClick={() => setView('landing')}>
+                                    <img src="https://i.imgur.com/aVwYCPF.png" alt="El Enganche" className="h-10 sm:h-12 object-contain" />
+                                </div>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex gap-2">
@@ -532,7 +531,7 @@
                              </div>
                          )}
                     </header>
-                    <div className="bg-black py-2 px-3 border-b border-gray-800 text-xs flex items-center text-gray-400 overflow-hidden whitespace-nowrap"><span className="text-[#00ff55] mr-2 animate-pulse">●</span> <span className="font-bold text-gray-200 mr-1">MERCADO:</span> Mostrando {filteredMatches.length} partidos y {players.length} agentes libres en zona La Plata.</div>
+                    <div className="bg-black py-2 px-3 border-b border-gray-800 text-xs flex items-center text-gray-400 overflow-hidden whitespace-nowrap"><span className="text-[#00ff55] mr-2 animate-pulse">●</span> <span className="font-bold text-gray-200 mr-1">FÚTBOL AMATEUR LA PLATA | MERCADO:</span> Mostrando {filteredMatches.length} partidos y {players.length} agentes libres.</div>
 
                     <main className="flex-1 max-w-6xl mx-auto w-full p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
                         {/* VISTA: EQUIPO */}
@@ -809,12 +808,12 @@
                         </div>
                     )}
 
-                    {user && (
+                    {view !== 'landing' && (
                         <div className="fixed bottom-0 left-0 w-full bg-[#111] border-t border-gray-800 flex justify-around items-center h-16 z-50">
                             <button onClick={() => setView('app')} className={`flex flex-col items-center gap-1 ${view === 'app' ? 'text-[#00ff55]' : 'text-gray-500'}`}><Home size={20}/> <span className="text-[10px]">Inicio</span></button>
                             <button onClick={handleClickHeaderButton} className="flex flex-col items-center gap-1 text-gray-500 hover:text-white"><PlusCircle size={20}/> <span className="text-[10px]">{!myTeam ? "Crear" : "Publicar"}</span></button>
-                            <button onClick={() => setView('team')} className={`flex flex-col items-center gap-1 ${view === 'team' ? 'text-[#00ff55]' : 'text-gray-500'}`}><Shield size={20}/> <span className="text-[10px]">Mi Equipo</span></button>
-                            <button onClick={() => setView('profile')} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-[#00ff55]' : 'text-gray-500'}`}><div className="w-5 h-5 rounded-full border border-current overflow-hidden">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User size={12} className="w-full h-full p-0.5"/>}</div><span className="text-[10px]">Perfil</span></button>
+                            <button onClick={() => user ? setView('team') : setShowLoginModal(true)} className={`flex flex-col items-center gap-1 ${view === 'team' ? 'text-[#00ff55]' : 'text-gray-500'}`}><Shield size={20}/> <span className="text-[10px]">Mi Equipo</span></button>
+                            <button onClick={() => user ? setView('profile') : setShowLoginModal(true)} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-[#00ff55]' : 'text-gray-500'}`}><div className="w-5 h-5 rounded-full border border-current overflow-hidden">{user && user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : <User size={12} className="w-full h-full p-0.5"/>}</div><span className="text-[10px]">Perfil</span></button>
                         </div>
                     )}
 
