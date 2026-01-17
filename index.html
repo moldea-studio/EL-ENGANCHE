@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>El Enganche - Fútbol Amateur</title>
+    <title>El Capitán - Fútbol Amateur</title>
     
     <!-- PWA Settings -->
     <meta name="theme-color" content="#00ff55">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="El Enganche">
+    <meta name="apple-mobile-web-app-title" content="El Capitán">
     <link rel="apple-touch-icon" id="apple-icon">
     <link rel="icon" type="image/png" id="favicon">
     <link rel="manifest" id="manifest-placeholder">
@@ -24,8 +24,8 @@
             document.getElementById('favicon').href = iconUrl;
             
             const manifest = {
-                "name": "El Enganche",
-                "short_name": "El Enganche",
+                "name": "El Capitán",
+                "short_name": "El Capitán",
                 "start_url": ".",
                 "display": "standalone",
                 "background_color": "#111827",
@@ -66,7 +66,7 @@
             <svg class="w-10 h-10 animate-spin mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
             </svg>
-            Cargando El Enganche...
+            Cargando El Capitán...
         </div>
     </div>
 
@@ -95,10 +95,13 @@
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         window.onerror = function(message, source, lineno, colno, error) {
-            const display = document.getElementById('error-display');
-            display.style.display = 'block';
-            display.innerHTML = `<strong>Error:</strong> ${message} <br/><small>${source}:${lineno}</small>`;
             console.error(error);
+            // Solo mostramos el error si es crítico, para no asustar con errores menores de red
+            if (!message.includes("permission") && !message.includes("network")) {
+                const display = document.getElementById('error-display');
+                display.style.display = 'block';
+                display.innerHTML = `<strong>Error:</strong> ${message} <br/><small>${source}:${lineno}</small>`;
+            }
         };
 
         const getFirebaseConfig = () => {
@@ -120,7 +123,7 @@
             db = getFirestore(app);
         } catch (e) { console.error("Error init firebase", e); }
 
-        const appId = 'el-enganche-web';
+        const appId = 'el-capitan-web';
         const ADMIN_EMAILS = ["worlddigital2011@gmail.com", "admin@elenganche.com", "eyamilgimenez98@gmail.com"];
         const LA_PLATA_ZONES = [
             "Todas", "La Plata (Casco Urbano)", "City Bell", "Villa Elisa", 
@@ -138,17 +141,21 @@
             "Zona Este": ["Ensenada", "Berisso"]
         };
 
+        // DATOS FICTICIOS PARA INICIALIZAR LA APP
         const INITIAL_MATCHES = [
             { time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 1, position: 'Arquero', teamName: 'Los Rotos FC', urgent: true },
             { time: '20:30', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true },
+            { time: '21:00', place: 'La Plaza', zone: 'City Bell', format: 'F5', type: 'player', missing: 2, position: 'Defensores', teamName: 'Inter CB', urgent: false },
         ];
         const INITIAL_PLAYERS = [
             { name: 'Lucho M.', position: 'Arquero', zone: 'Villa Elisa', rating: 4, status: 'Disponible' },
+            { name: 'Juan P.', position: 'Medio', zone: 'La Plata (Casco Urbano)', rating: 5, status: 'Disponible' },
+            { name: 'Santi G.', position: 'Delantero', zone: 'Gonnet', rating: 3, status: 'Disponible' },
         ];
 
         const App = () => {
             const [view, setView] = useState('landing');
-            const [isMenuOpen, setIsMenuOpen] = useState(false); // Aunque no se use visualmente, se mantiene por si acaso
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
             const [isProfileExpanded, setIsProfileExpanded] = useState(false);
             const [showNotifications, setShowNotifications] = useState(false);
             const [formatFilter, setFormatFilter] = useState('Todos');
@@ -225,6 +232,7 @@
                             subscribeToData();
                         } else {
                             try { await signInAnonymously(auth); } catch(e) { 
+                                console.log("Login anónimo falló, mostrando datos locales");
                                 setMatches(INITIAL_MATCHES); setPlayers(INITIAL_PLAYERS); setLoading(false);
                             }
                         }
@@ -257,26 +265,60 @@
                     const qM = collection(db, 'artifacts', appId, 'public', 'data', 'matches');
                     onSnapshot(qM, (s) => {
                         const data = s.docs.map(d => ({id: d.id, ...d.data()}));
-                        if (data.length === 0) seedDatabase();
-                        else setMatches(data);
+                        if (data.length === 0) {
+                            console.log("Base de datos de partidos vacía. Sembrando datos...");
+                            seedDatabase().catch(e => console.error("Error al sembrar partidos:", e));
+                        } else {
+                            setMatches(data);
+                        }
                         setLoading(false);
-                    }, () => { setMatches(INITIAL_MATCHES); setLoading(false); });
+                    }, (error) => {
+                        console.error("Error cargando partidos:", error);
+                        setMatches(INITIAL_MATCHES); // Fallback Visual
+                        setLoading(false);
+                    });
+
                     const qP = collection(db, 'artifacts', appId, 'public', 'data', 'players');
                     onSnapshot(qP, (s) => {
                         const data = s.docs.map(d => ({id: d.id, ...d.data()}));
-                        if (data.length === 0) seedPlayers();
-                        else setPlayers(data);
+                        if (data.length === 0) {
+                            console.log("Base de datos de jugadores vacía. Sembrando datos...");
+                            seedPlayers().catch(e => console.error("Error al sembrar jugadores:", e));
+                        } else {
+                            setPlayers(data);
+                        }
+                    }, (error) => {
+                        console.error("Error cargando jugadores:", error);
+                        setPlayers(INITIAL_PLAYERS); // Fallback Visual
                     });
-                } catch(e) { setLoading(false); }
+                } catch(e) { 
+                    console.error("Error general:", e);
+                    setMatches(INITIAL_MATCHES);
+                    setPlayers(INITIAL_PLAYERS);
+                    setLoading(false); 
+                }
             };
 
             const seedDatabase = async () => {
+                // Función de seguridad para no duplicar si ya hay datos
                 const matchesRef = collection(db, 'artifacts', appId, 'public', 'data', 'matches');
-                for (const match of INITIAL_MATCHES) { await addDoc(matchesRef, { ...match, playersSigned: [], createdAt: serverTimestamp() }); }
+                const snap = await getDocs(matchesRef);
+                if (snap.size === 0) {
+                    for (const match of INITIAL_MATCHES) { 
+                        await addDoc(matchesRef, { ...match, playersSigned: [], createdBy: 'system', createdAt: serverTimestamp() }); 
+                    }
+                    console.log("¡Partidos sembrados correctamente!");
+                }
             };
             const seedPlayers = async () => {
                 const playersRef = collection(db, 'artifacts', appId, 'public', 'data', 'players');
-                for (const p of INITIAL_PLAYERS) { await addDoc(playersRef, { ...p, createdAt: serverTimestamp() }); }
+                const snap = await getDocs(playersRef);
+                if (snap.size === 0) {
+                    for (const p of INITIAL_PLAYERS) { 
+                        await addDoc(playersRef, { ...p, uid: 'dummy_'+Math.random(), createdAt: serverTimestamp() }); 
+                    }
+                    console.log("¡Jugadores sembrados correctamente!");
+                }
             };
 
             // --- HANDLERS ---
@@ -426,11 +468,23 @@
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), where('searchName', '>=', teamSearchQuery.toLowerCase()), where('searchName', '<=', teamSearchQuery.toLowerCase() + '\uf8ff'));
                 const snaps = await getDocs(q); setTeamSearchResults(snaps.docs.map(d => ({id: d.id, ...d.data()})));
             };
-            const sendWhatsAppInvite = () => { window.open(`https://wa.me/?text=${encodeURIComponent(`Unite a ${myTeam.name} en El Enganche.`)}`, '_blank'); };
+
+            const handleShareApp = () => {
+                // Texto de compartir actualizado
+                const text = "¡Sumate a El Capitán! La app para organizar partidos y encontrar equipo en La Plata. Descargala acá:";
+                
+                // --- IMPORTANTE: CAMBIAR ESTO CUANDO TENGAS EL LINK DE DRIVE ---
+                // Cuando tengas el link del APK en Drive, borra la línea de abajo y descomenta la siguiente poniendo tu link:
+                const url = window.location.href; 
+                // const url = "https://drive.google.com/file/d/TU-LINK-DE-DRIVE/view";
+                
+                window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, '_blank');
+            };
+
             const sendSystemInvite = async (targetUser) => {
                 if (!user || !myTeam) return;
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'recruit', fromUserId: user.uid, fromName: user.displayName, teamId: myTeam.id, teamName: myTeam.name, toUserId: targetUser.uid, toPlayerName: targetUser.name, place: "Fichaje", time: "General", status: 'pending', createdAt: serverTimestamp() });
-                alert("Solicitud enviada");
+                alert("Solicitud de fichaje enviada internamente.");
             };
             const sendJoinRequest = async (targetTeam) => {
                 if (!user) return;
@@ -442,6 +496,35 @@
                 if (!myTeam || myTeam.captainId !== user.uid) { alert("Solo capitanes."); return; }
                 setTargetPlayer(player); setInviteData({ place: '', time: '' }); setShowInviteModal(true);
             };
+
+            const sendInvitation = async (e) => {
+                e.preventDefault();
+                if (!user || !myTeam || !targetPlayer) return;
+                setSubmitting(true);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
+                        type: 'recruit',
+                        fromUserId: user.uid,
+                        fromName: user.displayName,
+                        teamId: myTeam.id,
+                        teamName: myTeam.name,
+                        toUserId: targetPlayer.uid,
+                        toPlayerName: targetPlayer.name,
+                        place: inviteData.place,
+                        time: inviteData.time,
+                        status: 'pending',
+                        createdAt: serverTimestamp()
+                    });
+                    setShowInviteModal(false);
+                    setInviteData({ place: '', time: '' });
+                    alert(`¡Invitación enviada a ${targetPlayer.name}!`);
+                } catch (err) {
+                    alert("Error al enviar invitación: " + err.message);
+                } finally {
+                    setSubmitting(false);
+                }
+            };
+
             const handleRespondInvitation = async (inv, response) => {
                 if (!user) return;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invitations', inv.id), { status: response });
@@ -468,7 +551,7 @@
                         <div className="z-10 mb-12 transform hover:scale-105 transition-transform duration-500 flex flex-col items-center">
                             <img 
                                 src="https://i.imgur.com/F7p7sXT.png" 
-                                alt="El Enganche" 
+                                alt="El Capitán" 
                                 className="w-64 sm:w-80 object-contain drop-shadow-[0_0_15px_rgba(0,255,85,0.3)]" 
                             />
                         </div>
@@ -495,11 +578,12 @@
                         <div className="max-w-6xl mx-auto px-3 h-16 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="cursor-pointer flex items-center" onClick={() => setView('landing')}>
-                                    <img src="https://i.imgur.com/aVwYCPF.png" alt="El Enganche" className="h-10 sm:h-12 object-contain" />
+                                    <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-10 sm:h-12 object-contain" />
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex gap-2">
+                                    <button onClick={handleShareApp} className="bg-green-600 text-white border border-green-500 px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.2)] hover:bg-[#00ff55] hover:text-black font-black uppercase text-xs flex items-center gap-1 transition-all"><Share2 size={14}/> <span className="hidden sm:inline">Compartir</span></button>
                                     <button onClick={handleClickHeaderButton} className="bg-[#00ff55] text-black px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.4)] hover:bg-white font-black uppercase text-xs flex items-center gap-1"><PlusCircle size={14}/> <span className="hidden sm:inline">{!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</span></button>
                                     <button onClick={handleInstallClick} className="bg-gray-800 text-[#00ff55] border border-[#00ff55] px-3 py-1.5 rounded shadow-[0_0_10px_rgba(0,255,85,0.2)] hover:bg-[#00ff55] hover:text-black font-black uppercase text-xs flex items-center gap-1 transition-all"><Download size={14}/> <span className="hidden sm:inline">App</span></button>
                                     <button onClick={() => setShowMapModal(true)} className="bg-gray-800 text-white border border-gray-600 px-3 py-1.5 rounded shadow-sm hover:bg-gray-700 flex items-center gap-1 transition-all"><MapPin size={14}/> <span className="hidden sm:inline">Canchas</span></button>
@@ -747,7 +831,6 @@
                                     ))}
                                     {searchResults.length === 0 && searchQuery && <p className="text-center text-gray-500 text-sm">No se encontraron jugadores.</p>}
                                 </div>
-                                <div className="border-t border-gray-700 pt-4"><p className="text-xs text-center text-gray-400 mb-2">¿No tiene cuenta?</p><button onClick={sendWhatsAppInvite} className="w-full bg-[#25D366] text-white font-bold py-2 rounded flex items-center justify-center gap-2 text-sm"><Share2 size={16}/> Invitar por WhatsApp</button></div>
                             </div>
                         </div>
                     )}
@@ -819,7 +902,7 @@
 
                     {!user && (
                         <footer className="bg-[#0f0f0f] text-gray-500 text-xs text-center py-8 mt-12 border-t border-gray-800">
-                            <p className="mb-3 font-medium text-gray-400">EL ENGANCHE © 2026</p>
+                            <p className="mb-3 font-medium text-gray-400">EL CAPITÁN © 2026</p>
                             <div className="flex justify-center gap-6 mb-4 font-bold text-gray-600 uppercase tracking-wider"><span>Reglamento</span><span>Soporte</span><span>Privacidad</span></div>
                         </footer>
                     )}
