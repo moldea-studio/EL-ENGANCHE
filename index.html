@@ -150,6 +150,21 @@
 
         const ZoneSelectOptions = () => (<>{Object.entries(ZONES_BY_AREA).map(([region, zones]) => (<optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">{zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}</optgroup>))}</>);
 
+        // Componente auxiliar para pintar estrellas
+        const StarRating = ({ rating }) => {
+            return (
+                <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                            key={star} 
+                            size={10} 
+                            className={`${(rating || 0) >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300 fill-gray-200"}`} 
+                        />
+                    ))}
+                </div>
+            );
+        };
+
         // --- DATOS FICTICIOS (Seeders) ---
         const INITIAL_MATCHES = [
             { date: yesterdayString, time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 0, position: 'Arquero', teamName: 'Los Rotos FC', urgent: false, playersSigned: ['dummy_1', 'dummy_2'], level: 'Picado Medio ⚽' },
@@ -732,15 +747,40 @@
                                 <div className="lg:col-span-4 space-y-4">
                                     <div className="bg-[#212121] text-white px-4 py-3 rounded-t-lg border-t-4 border-[#00ff55] font-bold text-sm flex items-center gap-2"><Users size={16} className="text-[#00ff55]"/> AGENTES LIBRES</div>
                                     <div className="bg-[#dce6dc] border border-gray-600 rounded-b-lg shadow-md p-2 space-y-2">
-                                        {players.map(p => (
-                                            <div key={p.id} className="bg-white p-2 rounded shadow-sm flex justify-between items-center">
-                                                <div>
-                                                    <div className="font-bold text-xs uppercase flex items-center gap-1">{p.name} <span className="text-[9px] bg-yellow-100 text-yellow-800 px-1 rounded">★ {p.rating ? p.rating.toFixed(1) : '-'}</span></div>
-                                                    <div className="text-[10px] text-gray-500">{p.position} | {p.level}</div>
+                                        {players.map(p => {
+                                            // Lógica de color para la posición
+                                            const isGK = p.position.toLowerCase().includes('arquero');
+                                            const posLetter = p.position.charAt(0).toUpperCase();
+                                            const posColor = isGK ? 'bg-orange-500' : 'bg-green-600';
+
+                                            return (
+                                                <div key={p.id} className="bg-white p-2 rounded shadow-sm flex justify-between items-center border border-gray-300">
+                                                    <div className="flex items-center">
+                                                        {/* Cuadrado de Posición */}
+                                                        <div className={`w-8 h-8 ${posColor} flex items-center justify-center font-bold text-white rounded mr-3 shadow-sm`}>
+                                                            {posLetter}
+                                                        </div>
+                                                        <div>
+                                                            {/* Nombre en Gris */}
+                                                            <div className="font-bold text-xs uppercase text-gray-700 flex items-center gap-2">
+                                                                {p.name}
+                                                            </div>
+                                                            {/* Estrellas */}
+                                                            <div className="mt-0.5">
+                                                                <StarRating rating={p.rating} />
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500 mt-0.5">{p.position} | {p.level}</div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {(isAdmin || (user && p.uid === user.uid)) ? (
+                                                        <button onClick={() => { askConfirmation("¿Borrar?", async () => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', p.id))) }} className="text-red-500 text-[10px] font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50">BAJARME</button>
+                                                    ) : (
+                                                        <button onClick={() => openInviteModal(p)} className="text-[#00ff55] text-xs border border-[#00ff55] px-2 py-1 rounded hover:bg-[#00ff55] hover:text-black font-bold">FICHAR</button>
+                                                    )}
                                                 </div>
-                                                {(isAdmin || (user && p.uid === user.uid)) && <button onClick={() => { askConfirmation("¿Borrar?", async () => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', p.id))) }} className="text-red-500 text-[10px] font-bold border border-red-200 px-2 py-1 rounded">BAJARME</button>}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         <div className="mt-2 pt-2 border-t border-gray-300">
                                             <select className="w-full mb-2 text-xs p-1 rounded border" value={playerPostulationLevel} onChange={e=>setPlayerPostulationLevel(e.target.value)}>{MATCH_LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select>
                                             <button onClick={handleJoinAsPlayer} className="w-full bg-[#212121] text-[#00ff55] font-bold text-xs py-2 rounded uppercase border border-gray-600 hover:border-[#00ff55]">Postularme</button>
@@ -749,8 +789,8 @@
                                 </div>
                             </>
                         )}
-
-                        {/* VISTAS EXTRAS: TEAM, PROFILE... (Simplificadas para el fix) */}
+                        
+                        {/* VISTAS EXTRAS: TEAM, PROFILE... (Mantenidas igual) */}
                         {view === 'team' && (
                             <div className="lg:col-span-12">
                                 <div className="bg-[#1a1a1a] p-4 rounded text-white text-center">
