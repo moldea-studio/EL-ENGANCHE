@@ -684,20 +684,26 @@
                             </div>
                         </div>
 
-                        {/* HEADER DESKTOP */}
+                        {/* HEADER DESKTOP - MODIFICADO: BOTONES A LA DERECHA */}
                         <div className="hidden sm:flex h-16 px-4 items-center justify-between">
+                            {/* Lado Izquierdo: Solo Logo */}
                             <div className="flex items-center gap-4">
                                 <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-10 object-contain" />
-                                <div className="flex gap-2">
-                                    <button onClick={handleClickHeaderButton} className="bg-[#00ff55] text-black px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2"><PlusCircle size={14}/> {!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</button>
-                                    <button onClick={() => setShowMapModal(true)} className="text-white hover:text-[#00ff55] text-xs font-bold flex items-center gap-1"><MapPin size={14}/> CANCHAS</button>
-                                </div>
                             </div>
-                            {user ? (
-                                <button onClick={() => setShowNotifications(!showNotifications)} className="text-white relative"><Bell size={20}/></button>
-                            ) : (
-                                <button onClick={() => setShowLoginModal(true)} className="text-[#00ff55] font-bold text-xs">INGRESAR</button>
-                            )}
+                            
+                            {/* Lado Derecho: Botones + Usuario/Login */}
+                            <div className="flex items-center gap-4">
+                                <div className="flex gap-2">
+                                    <button onClick={handleClickHeaderButton} className="bg-[#00ff55] text-black px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 hover:bg-white transition-colors"><PlusCircle size={14}/> {!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</button>
+                                    <button onClick={() => setShowMapModal(true)} className="text-white hover:text-[#00ff55] text-xs font-bold flex items-center gap-1 transition-colors"><MapPin size={14}/> CANCHAS</button>
+                                </div>
+                                
+                                {user ? (
+                                    <button onClick={() => setShowNotifications(!showNotifications)} className="text-white relative ml-2 hover:text-[#00ff55] transition-colors"><Bell size={20}/></button>
+                                ) : (
+                                    <button onClick={() => setShowLoginModal(true)} className="text-[#00ff55] font-bold text-xs ml-2 border border-[#00ff55] px-3 py-1 rounded hover:bg-[#00ff55] hover:text-black transition-colors">INGRESAR</button>
+                                )}
+                            </div>
                         </div>
 
                         {/* NOTIFICACIONES */}
