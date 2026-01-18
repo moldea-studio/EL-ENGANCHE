@@ -196,6 +196,7 @@
             const [myTeam, setMyTeam] = useState(null);
             const [loading, setLoading] = useState(true);
             const [submitting, setSubmitting] = useState(false);
+            const [uploadingLogo, setUploadingLogo] = useState(false); // NUEVO ESTADO PARA CARGA
             
             // UI States
             const [showLoginModal, setShowLoginModal] = useState(false);
@@ -208,6 +209,7 @@
             const [showMapModal, setShowMapModal] = useState(false);
             const [showRatingModal, setShowRatingModal] = useState(false);
             const [showNotifications, setShowNotifications] = useState(false);
+            const [showSuccessModal, setShowSuccessModal] = useState({ show: false, message: '' }); // NUEVO ESTADO PARA POPUP
             
             // Filter States
             const [formatFilter, setFormatFilter] = useState('Todos');
@@ -310,7 +312,7 @@
                     const d = s.docs.map(doc => ({id: doc.id, ...doc.data()}));
                     if(d.length === 0) seedPlayers();
                     else setPlayers(d);
-                }, () => { setPlayers(INITIAL_PLAYERS); }); // Fixed error handler
+                }, () => { setPlayers(INITIAL_PLAYERS); }); 
 
                 return () => { unsubM(); unsubP(); }
             }, [db]);
@@ -456,6 +458,8 @@
                     return;
                 }
 
+                setUploadingLogo(true); // INICIO DE CARGA
+
                 try {
                     const compressed = await compressImage(file);
                     const logoRef = ref(storage, `artifacts/${appId}/public/data/team_logos/${user.uid}_${Date.now()}.jpg`);
@@ -463,8 +467,11 @@
                     const newUrl = await getDownloadURL(logoRef);
                     
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teams', myTeam.id), { logoUrl: newUrl });
-                    alert("¡Escudo actualizado!");
+                    
+                    setUploadingLogo(false); // FIN DE CARGA
+                    setShowSuccessModal({ show: true, message: '¡El escudo de tu equipo se ha actualizado correctamente!' }); // POPUP EXITO
                 } catch(err) {
+                    setUploadingLogo(false);
                     alert("Error al subir logo: " + err.message);
                 }
             };
@@ -817,16 +824,23 @@
                                         <div>
                                             {/* Cabecera del Equipo con LOGO EDITABLE */}
                                             <div className="flex items-center justify-center gap-3 mb-6 border-b border-gray-700 pb-4 relative">
-                                                 <div className="relative group">
+                                                 <div className="relative group w-24 h-24">
+                                                     {/* FEEDBACK DE CARGA: SPINNER OVERLAY */}
+                                                     {uploadingLogo && (
+                                                         <div className="absolute inset-0 bg-black/70 rounded-full flex items-center justify-center z-40">
+                                                             <svg className="w-8 h-8 text-[#00ff55] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                                                         </div>
+                                                     )}
+                                                     
                                                      {myTeam.logoUrl ? (
-                                                         <img src={myTeam.logoUrl} alt="Logo" className="w-20 h-20 rounded-full object-cover border-4 border-[#00ff55] shadow-lg"/>
+                                                         <img src={myTeam.logoUrl} alt="Logo" className="w-full h-full rounded-full object-cover border-4 border-[#00ff55] shadow-lg"/>
                                                      ) : (
-                                                         <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center border-4 border-gray-600">
+                                                         <div className="w-full h-full rounded-full bg-gray-700 flex items-center justify-center border-4 border-gray-600">
                                                              <Shield size={40} className="text-gray-400"/>
                                                          </div>
                                                      )}
                                                      {/* FIX: Botón de cámara totalmente visible y "fuera" del círculo */}
-                                                     {isCaptain && (
+                                                     {isCaptain && !uploadingLogo && (
                                                          <label className="absolute -bottom-1 -right-1 bg-[#00ff55] text-black p-2 rounded-full cursor-pointer hover:bg-white hover:scale-110 transition-all shadow-xl border-2 border-black z-50 flex items-center justify-center">
                                                              <Camera size={16} />
                                                              <input type="file" accept="image/*" className="hidden" onChange={handleUpdateTeamLogo} />
@@ -1253,6 +1267,23 @@
                                     <button onClick={() => setConfirmation({show:false})} className="flex-1 py-2 text-gray-400">Cancelar</button>
                                     <button onClick={() => {confirmation.action(); setConfirmation({show:false})}} className="flex-1 py-2 bg-red-600 text-white rounded font-bold">Confirmar</button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NUEVO POP-UP DE ÉXITO */}
+                    {showSuccessModal.show && (
+                        <div className="fixed inset-0 bg-black/90 z-[1200] flex items-center justify-center p-4 modal-animate">
+                            <div className="bg-[#1a1a1a] p-6 rounded-xl w-full max-w-xs text-center border-2 border-[#00ff55] shadow-[0_0_30px_rgba(0,255,85,0.3)]">
+                                <CheckCircle size={56} className="text-[#00ff55] mx-auto mb-4 animate-bounce"/>
+                                <h3 className="text-white font-black text-xl italic mb-2">¡ÉXITO!</h3>
+                                <p className="text-gray-300 text-sm mb-6">{showSuccessModal.message}</p>
+                                <button 
+                                    onClick={() => setShowSuccessModal({ show: false, message: '' })} 
+                                    className="w-full bg-[#00ff55] text-black font-black py-3 rounded-lg hover:bg-white transition-colors uppercase tracking-widest"
+                                >
+                                    ENTENDIDO
+                                </button>
                             </div>
                         </div>
                     )}
