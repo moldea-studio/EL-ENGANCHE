@@ -45,7 +45,6 @@
 
     <!-- Estilos base -->
     <style>
-        /* Padding inferior extra grande para asegurar que el contenido no quede tapado por el footer */
         body { background-color: #111827; color: #e5e7eb; font-family: sans-serif; padding-bottom: 100px; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1a1a1a; }
@@ -78,7 +77,7 @@
             Link as LinkIcon, User, LogOut, Mail, Lock, Trash2, Ban, Trophy, 
             Activity, ArrowLeft, HelpCircle, FileText, Lock as LockIcon, Bell, 
             CheckCircle, XCircle, Send, Crown, UserPlus, Share2, Edit2, Save, MinusCircle,
-            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX, Clock, MessageCircle, Beer, Flame, Banknote, Image as ImageIcon, Camera
+            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX, Clock, MessageCircle, Beer, Flame, Banknote, Image as ImageIcon, Camera, ChevronDown as ChevDown, ChevronUp as ChevUp
         } from 'https://esm.sh/lucide-react@0.294.0';
         
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -94,9 +93,6 @@
            orderBy, getDoc, setDoc, getDocs, Timestamp
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
-        // --- ELIMINADO STORAGE: YA NO LO NECESITAMOS ---
-        // import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
-
         // --- DEFINICIONES GLOBALES ---
         const appId = 'el-capitan-web';
         const ADMIN_EMAILS = ["worlddigital2011@gmail.com", "admin@elenganche.com", "eyamilgimenez98@gmail.com"];
@@ -121,8 +117,9 @@
 
         const today = new Date().toISOString().split('T')[0];
         const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0];
+        // Aquí definimos las fechas de corte:
+        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // Para ocultar en feed
+        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0]; // Para limitar lecturas DB
         const maxPublishDate = new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0];
 
         // --- COMPONENTES AUXILIARES ---
@@ -142,7 +139,7 @@
 
         const ZoneSelectOptions = () => (<>{Object.entries(ZONES_BY_AREA).map(([region, zones]) => (<optgroup key={region} label={region} className="bg-gray-800 text-gray-300 font-bold">{zones.map(z => <option key={z} value={z} className="bg-gray-700 font-normal">{z}</option>)}</optgroup>))}</>);
 
-        // --- DATOS FICTICIOS ---
+        // --- DATOS FICTICIOS (Seeders) ---
         const INITIAL_MATCHES = [
             { date: yesterdayString, time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', missing: 0, position: 'Arquero', teamName: 'Los Rotos FC', urgent: false, playersSigned: ['dummy_1', 'dummy_2'], level: 'Picado Medio ⚽' },
             { date: today, time: '21:00', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', isChallenge: true, stake: 'La cancha ($30.000)', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true, level: 'A Morir (Competitivo) 🏆' },
@@ -155,12 +152,10 @@
 
         // --- APP PRINCIPAL ---
         const App = () => {
-            // ESTADO INICIAL SIEMPRE 'landing'
             const [view, setView] = useState('landing');
             const [user, setUser] = useState(null);
             const [userProfile, setUserProfile] = useState(null);
             
-            // Firebase Config
             const getFirebaseConfig = () => ({
                 apiKey: "AIzaSyC8att6xIu--GeDn7uY6gHkIrwUU1UhwpM",
                 authDomain: "el-enganche.firebaseapp.com",
@@ -170,27 +165,19 @@
                 appId: "1:733812663281:web:1e0ba9ca08a331930eda50"
             });
 
-            // Init Firebase
             const [db, setDb] = useState(null);
             const [auth, setAuth] = useState(null);
-            
-            // ELIMINADO ESTADO STORAGE
-            // const [storage, setStorage] = useState(null);
 
             useEffect(() => {
                  try {
-            const app = initializeApp(getFirebaseConfig());
-        
-            // 🔒 App Check con reCAPTCHA (ACTIVADO PARA PRODUCCIÓN)
-            const appCheck = initializeAppCheck(app, {
-                provider: new ReCaptchaV3Provider('6LdxFE4sAAAAAIcAqm8pq_mfpw1WRzVRJtHiOkP4'),
-                isTokenAutoRefreshEnabled: true
-            });
-        
-            setAuth(getAuth(app));
-            setDb(getFirestore(app));
-            // setStorage(getStorage(app)); // YA NO SE USA
-            } catch(e) { console.error(e); }
+                    const app = initializeApp(getFirebaseConfig());
+                    const appCheck = initializeAppCheck(app, {
+                        provider: new ReCaptchaV3Provider('6LdxFE4sAAAAAIcAqm8pq_mfpw1WRzVRJtHiOkP4'),
+                        isTokenAutoRefreshEnabled: true
+                    });
+                    setAuth(getAuth(app));
+                    setDb(getFirestore(app));
+                } catch(e) { console.error(e); }
             }, []);
 
             // Data States
@@ -201,6 +188,7 @@
             const [loading, setLoading] = useState(true);
             const [submitting, setSubmitting] = useState(false);
             const [uploadingLogo, setUploadingLogo] = useState(false);
+            const [showStatsDetails, setShowStatsDetails] = useState(false);
             
             // UI States
             const [showLoginModal, setShowLoginModal] = useState(false);
@@ -228,12 +216,7 @@
             const [neededPositions, setNeededPositions] = useState(['Cualquiera']);
             const [playerPostulationLevel, setPlayerPostulationLevel] = useState('Picado Medio ⚽');
             
-            // Rating & Edit States
-            const [ratingStep, setRatingStep] = useState('list');
-            const [ratingMatch, setRatingMatch] = useState(null);
-            const [ratingTargetPlayer, setRatingTargetPlayer] = useState(null);
-            const [ratings, setRatings] = useState({ game: 3, punctuality: 3, fairplay: 3, communication: 3, social: 3 });
-            const [isEditingPosition, setIsEditingPosition] = useState(false);
+            // Edit States
             const [isEditingNickname, setIsEditingNickname] = useState(false);
             const [nicknameInput, setNicknameInput] = useState('');
             
@@ -250,14 +233,13 @@
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
             const myOrganizedMatches = user ? matches.filter(m => m.createdBy === user.uid) : [];
             const matchesJoined = user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)).length : 0; 
+            const playedMatchesList = user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)) : [];
+            const myPostulations = user ? players.filter(p => p.uid === user.uid) : [];
             const userRating = userProfile?.rating || 0;
             const userRatingCount = userProfile?.ratingCount || 0;
             const pendingInvitations = invitations.filter(inv => inv.status === 'pending');
             const isCaptain = myTeam && myTeam.captainId === user?.uid;
             
-            const myPlayerProfile = players.find(p => user && p.uid === user.uid);
-
-            // Funciones Faltantes Agregadas para Estabilidad
             const handleAddSlot = () => setNeededPositions([...neededPositions, 'Cualquiera']);
             const handleRemoveSlot = (index) => setNeededPositions(neededPositions.filter((_, i) => i !== index));
             const handleSlotChange = (index, value) => {
@@ -303,6 +285,7 @@
 
             useEffect(() => {
                 if(!db) return;
+                // NOTA: Aquí está la protección de lecturas. Solo bajamos data de hace 7 días.
                 const qM = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('date', '>=', sevenDaysAgoString));
                 const unsubM = onSnapshot(qM, (s) => {
                     const d = s.docs.map(doc => ({id: doc.id, ...doc.data()}));
@@ -340,7 +323,6 @@
             };
 
             // --- HELPERS ---
-            // Compresión de imagen y conversión a Base64 (Texto)
             const compressImageToBase64 = async (file) => {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -350,13 +332,12 @@
                         img.src = e.target.result;
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const MAX = 200; // Redimensionar a 200px (muy importante)
+                            const MAX = 200; 
                             let w = img.width, h = img.height;
                             if(w>h) { if(w>MAX) { h*=MAX/w; w=MAX; } } else { if(h>MAX) { w*=MAX/h; h=MAX; } }
                             canvas.width = w; canvas.height = h;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, w, h);
-                            // Convierte a string Base64 (Texto) en lugar de Blob (Archivo)
                             const base64String = canvas.toDataURL('image/jpeg', 0.7);
                             resolve(base64String);
                         }
@@ -393,7 +374,6 @@
                 } else { setShowInstallModal(true); }
             };
 
-            // --- CRUD ACTIONS ---
             const handleJoinMatch = async (m) => {
                 if(!user) return setShowLoginModal(true);
                 const ref = doc(db, 'artifacts', 'el-capitan-web', 'public', 'data', 'matches', m.id);
@@ -444,19 +424,10 @@
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), { nickname: nicknameInput });
                 setUserProfile({ ...userProfile, nickname: nicknameInput });
                 setIsEditingNickname(false);
+                // También actualizar nombre en postulaciones si existen
                 if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { name: nicknameInput });
             };
-
-            const handleUpdatePosition = async (newPos) => {
-                if(!user) return;
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-                await updateDoc(userRef, { position: newPos });
-                setUserProfile({ ...userProfile, position: newPos });
-                setIsEditingPosition(false);
-                if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { position: newPos });
-            };
             
-            // --- NUEVO: Subir Logo como Texto (Base64) ---
             const handleUpdateTeamLogo = async (e) => {
                 const file = e.target.files[0];
                 if (!file || !user || !myTeam) return;
@@ -467,16 +438,11 @@
                 }
 
                 setUploadingLogo(true);
-
                 try {
-                    // 1. Convertir a string (Base64)
-                    console.log("Procesando imagen...");
+                    // Convertir a string Base64 (Sin Storage)
                     const base64String = await compressImageToBase64(file);
-                    
-                    // 2. Guardar el string directamente en Firestore (Sin Storage)
-                    console.log("Guardando en base de datos...");
+                    // Guardar en Firestore
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teams', myTeam.id), { logoUrl: base64String });
-                    
                     setUploadingLogo(false);
                     setShowSuccessModal({ show: true, message: '¡El escudo de tu equipo se ha actualizado correctamente!' });
                 } catch(err) {
@@ -501,10 +467,9 @@
                 }
             };
             
-            // --- NUEVA FUNCIÓN PARA DISOLVER EQUIPO ---
             const handleDeleteTeam = async () => {
                 if(!user || !myTeam) return;
-                askConfirmation("¿Estás seguro de que quieres disolver el equipo? Esta acción no se puede deshacer.", async () => {
+                askConfirmation("¿Estás seguro de que quieres disolver el equipo?", async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teams', myTeam.id));
                         setMyTeam(null);
@@ -513,7 +478,6 @@
                 });
             };
 
-            // --- NUEVA FUNCIÓN PARA ABANDONAR EQUIPO ---
             const handleLeaveTeam = async () => {
                 if(!user || !myTeam) return;
                 askConfirmation("¿Salir del equipo?", async () => {
@@ -528,43 +492,26 @@
             const handleCreateTeam = async (e) => {
                 e.preventDefault();
                 if (!user || !newTeamName) return;
-                
-                // VALIDACIÓN DE TAMAÑO (10MB)
-                if (teamLogoFile && teamLogoFile.size > 10 * 1024 * 1024) {
-                    alert("El logo es muy pesado (Máx 10MB).");
-                    return;
-                }
-
                 setSubmitting(true);
-                
                 try {
                     let logoUrl = "";
                     if (teamLogoFile) {
-                        // Usar Base64 aquí también para equipos nuevos
                         logoUrl = await compressImageToBase64(teamLogoFile);
                     }
-
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), {
                         name: newTeamName, 
                         captainId: user.uid, 
                         captainName: userProfile?.nickname || user.displayName, 
-                        logoUrl: logoUrl, // Guarda el string largo
+                        logoUrl: logoUrl,
                         members: [{ uid: user.uid, name: userProfile?.nickname || user.displayName, role: 'captain', status: 'active' }],
                         searchName: newTeamName.toLowerCase(), 
                         createdAt: serverTimestamp()
                     });
-                    
-                    setNewTeamName(''); 
-                    setTeamLogoFile(null);
-                    setShowCreateTeamModal(false); 
-                    setView('team');
-                    alert("¡Equipo creado! Ahora eres el capitán.");
-                } catch(err) { 
-                    alert("Error: " + err.message); 
-                } finally { 
-                    setSubmitting(false); 
-                }
+                    setNewTeamName(''); setTeamLogoFile(null); setShowCreateTeamModal(false); setView('team');
+                    alert("¡Equipo creado!");
+                } catch(err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
             };
+
             const handleCreateDemoTeam = async () => {
                 if (!user) return;
                 const demoPlayers = [{ uid: 'd1', name: 'Esteban', role: 'player', status: 'active' }, { uid: 'd2', name: 'Pedro', role: 'player', status: 'active' }];
@@ -601,7 +548,7 @@
             const sendSystemInvite = async (targetUser) => {
                 if (!user || !myTeam) return;
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), { type: 'recruit', fromUserId: user.uid, fromName: userProfile?.nickname || user.displayName, teamId: myTeam.id, teamName: myTeam.name, toUserId: targetUser.uid, toPlayerName: targetUser.nickname || targetUser.name, place: "Fichaje", time: "General", status: 'pending', createdAt: serverTimestamp() });
-                alert("Solicitud de fichaje enviada internamente.");
+                alert("Solicitud enviada.");
             };
             const sendJoinRequest = async (targetTeam) => {
                 if (!user) return;
@@ -620,26 +567,11 @@
                 setSubmitting(true);
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invitations'), {
-                        type: 'recruit',
-                        fromUserId: user.uid,
-                        fromName: userProfile?.nickname || user.displayName,
-                        teamId: myTeam.id,
-                        teamName: myTeam.name,
-                        toUserId: targetPlayer.uid,
-                        toPlayerName: targetPlayer.name,
-                        place: inviteData.place,
-                        time: inviteData.time,
-                        status: 'pending',
-                        createdAt: serverTimestamp()
+                        type: 'recruit', fromUserId: user.uid, fromName: userProfile?.nickname || user.displayName, teamId: myTeam.id, teamName: myTeam.name,
+                        toUserId: targetPlayer.uid, toPlayerName: targetPlayer.name, place: inviteData.place, time: inviteData.time, status: 'pending', createdAt: serverTimestamp()
                     });
-                    setShowInviteModal(false);
-                    setInviteData({ place: '', time: '' });
-                    alert(`¡Invitación enviada a ${targetPlayer.name}!`);
-                } catch (err) {
-                    alert("Error al enviar invitación: " + err.message);
-                } finally {
-                    setSubmitting(false);
-                }
+                    setShowInviteModal(false); setInviteData({ place: '', time: '' }); alert(`¡Invitación enviada!`);
+                } catch (err) { alert("Error: " + err.message); } finally { setSubmitting(false); }
             };
 
             const handleRespondInvitation = async (inv, response) => {
@@ -664,21 +596,14 @@
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#003300] to-[#001a00] relative overflow-hidden h-screen">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(0,255,85,0.1),_transparent_70%)]"></div>
                         <div className="z-10 mb-12 transform hover:scale-105 transition-transform duration-500 flex flex-col items-center">
-                            <img 
-                                src="https://i.imgur.com/F7p7sXT.png" 
-                                alt="El Capitán" 
-                                className="w-64 sm:w-80 object-contain drop-shadow-[0_0_15px_rgba(0,255,85,0.3)]" 
-                            />
+                            <img src="https://i.imgur.com/F7p7sXT.png" alt="El Capitán" className="w-64 sm:w-80 object-contain drop-shadow-[0_0_15px_rgba(0,255,85,0.3)]" />
                         </div>
                         <div className="z-10 w-full max-w-sm space-y-4">
                             {user ? (
-                                // FIX 1: Mostrar "Cargando perfil..." si existe user pero no profile para evitar el salto de nombre.
                                 userProfile ? (
                                     <button onClick={() => setView('app')} className="w-full bg-[#00ff55] hover:bg-white text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,85,0.4)] flex items-center justify-center gap-2 uppercase tracking-wide transition-all"><User size={24}/> Continuar como {userProfile.nickname}</button>
                                 ) : (
-                                    <div className="w-full bg-[#002200] text-[#00ff55] font-bold py-4 rounded-xl flex items-center justify-center gap-2 animate-pulse">
-                                        Cargando perfil...
-                                    </div>
+                                    <div className="w-full bg-[#002200] text-[#00ff55] font-bold py-4 rounded-xl flex items-center justify-center gap-2 animate-pulse">Cargando perfil...</div>
                                 )
                             ) : (
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95 border border-gray-200">
@@ -692,7 +617,7 @@
                 );
             }
 
-            // FEED FILTRADO
+            // FEED FILTRADO - Aquí es donde "desaparecen" los viejos de la vista
             const feedMatches = matches.filter(m => 
                 (formatFilter === 'Todos' || m.format === formatFilter) && 
                 (zoneFilter === 'Todas' || m.zone === zoneFilter) &&
@@ -702,9 +627,7 @@
             return (
                 <div className="flex-1 flex flex-col pb-24">
                     <header className="bg-gradient-to-r from-[#003300] to-[#004d26] border-b-4 border-[#00ff55] sticky top-0 z-50 shadow-xl">
-                        {/* HEADER MÓVIL: 2 FILAS */}
                         <div className="sm:hidden flex flex-col w-full">
-                            {/* Fila 1: Logo y Usuario */}
                             <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-[#001a00]">
                                 <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-8 object-contain" />
                                 <div className="flex items-center">
@@ -718,7 +641,6 @@
                                     )}
                                 </div>
                             </div>
-                            {/* Fila 2: Botonera Acciones */}
                             <div className="grid grid-cols-4 gap-1 p-2 bg-[#002200]">
                                 <MobileHeaderButton icon={Share2} label="Invitar" onClick={handleShareApp} />
                                 <MobileHeaderButton icon={PlusCircle} label={!myTeam ? "Crear" : "Publicar"} onClick={handleClickHeaderButton} highlight={true} />
@@ -727,20 +649,15 @@
                             </div>
                         </div>
 
-                        {/* HEADER DESKTOP - MODIFICADO: BOTONES A LA DERECHA */}
                         <div className="hidden sm:flex h-16 px-4 items-center justify-between">
-                            {/* Lado Izquierdo: Solo Logo */}
                             <div className="flex items-center gap-4">
                                 <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-10 object-contain" />
                             </div>
-                            
-                            {/* Lado Derecho: Botones + Usuario/Login */}
                             <div className="flex items-center gap-4">
                                 <div className="flex gap-2">
                                     <button onClick={handleClickHeaderButton} className="bg-[#00ff55] text-black px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 hover:bg-white transition-colors"><PlusCircle size={14}/> {!myTeam ? "CREAR EQUIPO" : "PUBLICAR"}</button>
                                     <button onClick={() => setShowMapModal(true)} className="text-white hover:text-[#00ff55] text-xs font-bold flex items-center gap-1 transition-colors"><MapPin size={14}/> CANCHAS</button>
                                 </div>
-                                
                                 {user ? (
                                     <button onClick={() => setShowNotifications(!showNotifications)} className="text-white relative ml-2 hover:text-[#00ff55] transition-colors"><Bell size={20}/></button>
                                 ) : (
@@ -749,7 +666,6 @@
                             </div>
                         </div>
 
-                        {/* NOTIFICACIONES */}
                         {showNotifications && (
                             <div className="absolute top-14 right-2 w-72 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl z-[100]">
                                 <div className="p-3 bg-gray-900 border-b border-gray-800 text-xs font-bold text-gray-400">Notificaciones ({pendingInvitations.length})</div>
@@ -959,12 +875,16 @@
                                                 <button onClick={() => setIsEditingNickname(false)} className="text-red-500"><X size={20}/></button>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-2">
-                                                <div className="text-2xl font-black text-white italic">{userProfile?.nickname || user?.displayName}</div>
-                                                <button onClick={() => { setNicknameInput(userProfile?.nickname || user?.displayName); setIsEditingNickname(true); }} className="text-gray-500 hover:text-white"><Edit2 size={16}/></button>
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-2xl font-black text-white italic">{userProfile?.nickname || user?.displayName}</div>
+                                                    <button onClick={() => { setNicknameInput(userProfile?.nickname || user?.displayName); setIsEditingNickname(true); }} className="text-gray-500 hover:text-white"><Edit2 size={16}/></button>
+                                                </div>
+                                                {/* NUEVO: Email Visible */}
+                                                <div className="text-gray-500 text-xs">{user?.email}</div>
                                             </div>
                                         )}
-                                        <div className="text-[#00ff55] font-bold">★ {userRating.toFixed(1)} <span className="text-gray-500 text-xs">({userRatingCount})</span></div>
+                                        <div className="text-[#00ff55] font-bold mt-1">★ {userRating.toFixed(1)} <span className="text-gray-500 text-xs">({userRatingCount})</span></div>
                                     </div>
                                 </div>
 
@@ -994,7 +914,63 @@
                                     </div>
                                 </div>
 
-                                <button onClick={handleLogout} className="mt-4 w-full bg-red-900/30 text-red-500 py-3 rounded font-bold">CERRAR SESIÓN</button>
+                                {/* ACORDEÓN DESPLEGABLE: Historial Detallado */}
+                                <div className="mt-4">
+                                    <button 
+                                        onClick={() => setShowStatsDetails(!showStatsDetails)} 
+                                        className="w-full flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700 text-white font-bold text-sm hover:bg-gray-700 transition-colors"
+                                    >
+                                        <span>VER HISTORIAL RECIENTE</span>
+                                        {showStatsDetails ? <ChevUp size={16}/> : <ChevDown size={16}/>}
+                                    </button>
+
+                                    {showStatsDetails && (
+                                        <div className="mt-2 bg-[#1a1a1a] border border-gray-800 rounded p-3 text-left space-y-4 modal-animate">
+                                            <p className="text-[10px] text-gray-500 italic text-center">Mostrando actividad de los últimos 7 días</p>
+                                            {/* LISTA DE PARTIDOS JUGADOS */}
+                                            <div>
+                                                <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Mis Partidos ({playedMatchesList.length})</h4>
+                                                {playedMatchesList.length > 0 ? (
+                                                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                        {playedMatchesList.map(m => (
+                                                            <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center">
+                                                                <div>
+                                                                    <span className="text-white font-bold">{m.teamName}</span>
+                                                                    <div className="text-gray-500">{m.date} {m.time} | {m.place}</div>
+                                                                </div>
+                                                                <span className="bg-gray-800 px-2 py-0.5 rounded text-[9px]">{m.format}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-gray-600 text-xs italic">Aún no te has anotado en partidos.</p>
+                                                )}
+                                            </div>
+
+                                            {/* LISTA DE POSTULACIONES */}
+                                            <div>
+                                                <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Mis Postulaciones ({myPostulations.length})</h4>
+                                                {myPostulations.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {myPostulations.map(p => (
+                                                            <div key={p.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center">
+                                                                <div>
+                                                                    <span className="text-white font-bold">{p.position}</span>
+                                                                    <div className="text-gray-500">Zona: {p.zone}</div>
+                                                                </div>
+                                                                <button onClick={() => handleDeletePlayer(p.id)} className="text-red-500 hover:text-white"><Trash2 size={14}/></button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-gray-600 text-xs italic">No estás postulado como libre.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button onClick={handleLogout} className="mt-8 w-full bg-red-900/30 text-red-500 py-3 rounded font-bold border border-red-900/50 hover:bg-red-900/50 transition-colors">CERRAR SESIÓN</button>
                             </div>
                         )}
                     </main>
@@ -1006,7 +982,6 @@
                                 <Home size={24} className={view === 'app' ? "fill-current" : ""}/> 
                                 <span className="text-[10px] font-bold uppercase">Inicio</span>
                             </button>
-                            {/* Botón de Publicar eliminado para evitar redundancia con el header móvil */}
                             <button onClick={() => user ? setView('team') : setShowLoginModal(true)} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${view === 'team' ? 'text-[#00ff55]' : 'text-gray-500'}`}>
                                 <Shield size={24} className={view === 'team' ? "fill-current" : ""}/> 
                                 <span className="text-[10px] font-bold uppercase">Mi Equipo</span>
