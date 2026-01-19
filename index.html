@@ -499,6 +499,15 @@
                 } catch(e) { alert(e.message); }
             };
 
+            // --- NUEVO: CANCELAR SOLICITUD ---
+            const handleCancelRequest = async (invitationId) => {
+                if (!user) return;
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invitations', invitationId));
+                    setFeedbackModal({ show: true, type: 'info', title: 'CANCELADA', message: 'Has cancelado la solicitud.' });
+                } catch (e) { alert(e.message); }
+            };
+
             // --- RESPONDER A SOLICITUD DE PARTIDO ---
             const handleRespondMatchRequest = async (inv, action) => {
                 try {
@@ -905,7 +914,9 @@
                                         {loading ? <div className="p-8 text-center text-gray-500">Cargando la cancha...</div> : 
                                          feedMatches.map(m => {
                                             const isSigned = m.playersSigned?.includes(user?.uid);
-                                            const isPending = invitations.some(i => i.fromUserId === user?.uid && i.matchId === m.id && i.status === 'pending');
+                                            // FIX: Detectar si ya envié solicitud pendiente a ESTE partido
+                                            const pendingInvitation = invitations.find(i => i.fromUserId === user?.uid && i.matchId === m.id && i.status === 'pending');
+                                            const isPending = !!pendingInvitation;
                                             
                                             return (
                                                 <div key={m.id} className="p-3 border-b border-gray-300 flex justify-between items-center bg-white hover:bg-gray-50">
@@ -923,16 +934,21 @@
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         {(isAdmin || (user && m.createdBy === user.uid)) && <button onClick={() => { askConfirmation("¿Borrar?", async () => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'matches', m.id))) }} className="text-red-500 bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>}
+                                                        
+                                                        {/* BOTÓN INTELIGENTE: SALIR / CANCELAR / ENVIAR */}
                                                         <button 
-                                                            onClick={() => handleApplyMatch(m)} 
-                                                            disabled={isPending}
-                                                            className={`px-3 py-1.5 rounded text-xs font-bold border-b-2 ${
-                                                                isSigned ? 'bg-red-600 text-white border-red-800' : 
-                                                                isPending ? 'bg-gray-400 text-white border-gray-500 cursor-not-allowed' :
-                                                                'bg-[#008f45] text-white border-[#006400]'
+                                                            onClick={() => {
+                                                                if (isSigned) handleApplyMatch(m); // Logic to leave (existing)
+                                                                else if (isPending) handleCancelRequest(pendingInvitation.id); // NEW Logic to cancel
+                                                                else handleApplyMatch(m); // Logic to join
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded text-xs font-bold border-b-2 transition-all active:scale-95 ${
+                                                                isSigned ? 'bg-red-600 text-white border-red-800 hover:bg-red-700' : 
+                                                                isPending ? 'bg-yellow-500 text-black border-yellow-600 hover:bg-yellow-400' : // Estilo amarillo para cancelar
+                                                                'bg-[#008f45] text-white border-[#006400] hover:bg-[#007a3b]'
                                                             }`}
                                                         >
-                                                            {isSigned ? 'Salir' : isPending ? 'Pendiente...' : 'ENVIAR SOLICITUD'}
+                                                            {isSigned ? 'Salir' : isPending ? 'CANCELAR SOLICITUD' : 'ENVIAR SOLICITUD'}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -993,13 +1009,16 @@
                                     <h2 className="text-2xl font-black italic text-[#00ff55] mb-4">MI EQUIPO</h2>
                                     {myTeam ? (
                                         <div>
+                                            {/* Cabecera del Equipo con LOGO EDITABLE */}
                                             <div className="flex items-center justify-center gap-3 mb-6 border-b border-gray-700 pb-4 relative">
                                                  <div className="relative group w-24 h-24">
+                                                     {/* FEEDBACK DE CARGA: SPINNER OVERLAY */}
                                                      {uploadingLogo && (
                                                          <div className="absolute inset-0 bg-black/70 rounded-full flex items-center justify-center z-40">
                                                              <svg className="w-8 h-8 text-[#00ff55] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
                                                          </div>
                                                      )}
+                                                     
                                                      {myTeam.logoUrl ? (
                                                          <img src={myTeam.logoUrl} alt="Logo" className="w-full h-full rounded-full object-cover border-4 border-[#00ff55] shadow-lg"/>
                                                      ) : (
@@ -1007,6 +1026,7 @@
                                                              <Shield size={40} className="text-gray-400"/>
                                                          </div>
                                                      )}
+                                                     {/* FIX: Botón de cámara totalmente visible y "fuera" del círculo */}
                                                      {isCaptain && !uploadingLogo && (
                                                          <label className="absolute -bottom-1 -right-1 bg-[#00ff55] text-black p-2 rounded-full cursor-pointer hover:bg-white hover:scale-110 transition-all shadow-xl border-2 border-black z-50 flex items-center justify-center">
                                                              <Camera size={16} />
@@ -1040,6 +1060,7 @@
                                                 </div>
                                             </div>
 
+                                            {/* Botonera de Acciones Rápidas */}
                                             <div className="grid grid-cols-3 gap-2 mb-6">
                                                 <button onClick={() => setShowScoutModal(true)} className="bg-gray-800 border border-gray-600 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1">
                                                     <Search size={18} className="text-[#00ff55]"/>
@@ -1055,6 +1076,7 @@
                                                 </button>
                                             </div>
                                             
+                                            {/* Lista de Miembros (Restaurada) */}
                                             <div className="space-y-2 mb-6 text-left">
                                                 <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 pl-1">Plantel</h4>
                                                 {myTeam.members?.map(m => (
@@ -1079,6 +1101,8 @@
                                                     </div>
                                                 ))}
                                             </div>
+
+                                            {/* Zona de Peligro */}
                                             <div className="border-t border-gray-800 pt-4 mt-8">
                                                 {isCaptain ? (
                                                     <button onClick={handleDeleteTeam} className="text-red-500 text-xs font-bold border border-red-900/50 bg-red-900/10 px-4 py-2 rounded hover:bg-red-900/30 w-full flex items-center justify-center gap-2">
