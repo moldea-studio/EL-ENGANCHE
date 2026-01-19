@@ -100,7 +100,7 @@
         import { 
            getFirestore, collection, query, onSnapshot, doc, updateDoc, increment, 
            arrayUnion, arrayRemove, addDoc, serverTimestamp, deleteDoc, where, 
-           orderBy, getDoc, setDoc, getDocs, Timestamp
+           orderBy, getDoc, setDoc, getDocs, Timestamp, enableIndexedDbPersistence 
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
         // --- DEFINICIONES GLOBALES ---
@@ -129,8 +129,8 @@
         const today = new Date().toISOString().split('T')[0];
         const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
         // Aquí definimos las fechas de corte:
-        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // Para ocultar en feed
-        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0]; // Para limitar lecturas DB
+        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // Para ocultar en feed visualmente
+        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0]; // Para limitar lecturas DB del feed público
         const maxPublishDate = new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0];
 
         // --- COMPONENTES AUXILIARES ---
@@ -180,7 +180,6 @@
             const [view, setView] = useState('landing');
             const [user, setUser] = useState(null);
             const [userProfile, setUserProfile] = useState(null);
-            // ESTADO NUEVO: Controla la carga inicial de sesión
             const [checkingAuth, setCheckingAuth] = useState(true);
             
             const getFirebaseConfig = () => ({
@@ -203,12 +202,27 @@
                         isTokenAutoRefreshEnabled: true
                     });
                     setAuth(getAuth(app));
-                    setDb(getFirestore(app));
+                    const database = getFirestore(app);
+                    setDb(database);
+                    
+                    // --- ACTIVAR PERSISTENCIA OFFLINE (CACHE DEL CELULAR) ---
+                    // Esto permite guardar datos en el celular y no gastar lecturas si ya se bajaron
+                    enableIndexedDbPersistence(database).catch((err) => {
+                        if (err.code == 'failed-precondition') {
+                            console.log('Persistencia falló: Multiples pestañas abiertas');
+                        } else if (err.code == 'unimplemented') {
+                            console.log('Persistencia no soportada por el navegador');
+                        }
+                    });
+
                 } catch(e) { console.error(e); }
             }, []);
 
             // Data States
-            const [matches, setMatches] = useState([]);
+            const [matches, setMatches] = useState([]); // Feed público (limitado 7 días)
+            const [myFullHistoryMatches, setMyFullHistoryMatches] = useState([]); // Historial completo del usuario (sin límite)
+            const [myFullJoinedMatches, setMyFullJoinedMatches] = useState([]); // Partidos donde juego completo
+            
             const [players, setPlayers] = useState([]);
             const [invitations, setInvitations] = useState([]);
             const [myTeam, setMyTeam] = useState(null);
@@ -242,11 +256,11 @@
             const [publishData, setPublishData] = useState({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '', date: '', level: 'Picado Medio ⚽', isChallenge: false, stake: '' });
             const [neededPositions, setNeededPositions] = useState(['Cualquiera']);
             const [playerPostulationLevel, setPlayerPostulationLevel] = useState('Picado Medio ⚽');
-            const [postulationPosition, setPostulationPosition] = useState('Polifuncional'); // ESTADO PARA SELECCIONAR POSICION AL POSTULARSE
+            const [postulationPosition, setPostulationPosition] = useState('Polifuncional'); 
             
             // Edit States
             const [isEditingNickname, setIsEditingNickname] = useState(false);
-            const [isEditingPosition, setIsEditingPosition] = useState(false); // ESTADO PARA EDITAR POSICION EN PERFIL
+            const [isEditingPosition, setIsEditingPosition] = useState(false);
             const [nicknameInput, setNicknameInput] = useState('');
             
             // Search States
@@ -260,17 +274,14 @@
 
             // Computed
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
-            const myOrganizedMatches = user ? matches.filter(m => m.createdBy === user.uid) : [];
-            const matchesJoined = user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)).length : 0; 
-            const playedMatchesList = user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)) : [];
+            
+            // Estadísticas usando las listas completas, NO las del feed
             const myPostulations = user ? players.filter(p => p.uid === user.uid) : [];
             const userRating = userProfile?.rating || 0;
             const userRatingCount = userProfile?.ratingCount || 0;
             const pendingInvitations = invitations.filter(inv => inv.status === 'pending');
             const isCaptain = myTeam && myTeam.captainId === user?.uid;
             
-            const myPlayerProfile = players.find(p => user && p.uid === user.uid);
-
             const handleAddSlot = () => setNeededPositions([...neededPositions, 'Cualquiera']);
             const handleRemoveSlot = (index) => setNeededPositions(neededPositions.filter((_, i) => i !== index));
             const handleSlotChange = (index, value) => {
@@ -282,13 +293,9 @@
             // --- AUTH & DATA SUBSCRIPTION ---
             useEffect(() => {
                 if(!auth) return;
-                // FIX: Manejo inteligente del estado de carga al refrescar
                 onAuthStateChanged(auth, async (u) => {
                     if (u) {
-                        // Usuario detectado
                         setUser(u.isAnonymous ? null : u);
-                        
-                        // Si es un usuario real, ir directo a la APP, saltear landing
                         if (!u.isAnonymous) {
                             setView('app');
                             if (db) {
@@ -303,18 +310,37 @@
                             }
                         }
                     } else {
-                        // No hay usuario, intentar anónimo o dejar en landing
                          try { await signInAnonymously(auth); } catch(e) { console.log("Auth anon failed", e); }
                     }
-                    setCheckingAuth(false); // FIN DE LA VERIFICACIÓN DE SESIÓN
+                    setCheckingAuth(false);
                 });
             }, [auth, db]);
 
-            // EFECTO PARA ACTUALIZAR LA POSICIÓN DE POSTULACIÓN POR DEFECTO
             useEffect(() => {
                 if(userProfile?.position) setPostulationPosition(userProfile.position);
             }, [userProfile]);
 
+            // LISTENER DE MI HISTORIAL COMPLETO (SIN FECHA LIMITE)
+            // Esto recupera tus 8 partidos, aunque sean viejos, solo para tu usuario.
+            useEffect(() => {
+                if(!user || !db || user.isAnonymous) return;
+
+                // 1. Partidos Creados por mí (TODOS)
+                const qCreated = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('createdBy', '==', user.uid));
+                const unsubCreated = onSnapshot(qCreated, (s) => {
+                    setMyFullHistoryMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => new Date(b.date) - new Date(a.date)));
+                });
+
+                // 2. Partidos donde juego (TODOS)
+                const qJoined = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('playersSigned', 'array-contains', user.uid));
+                const unsubJoined = onSnapshot(qJoined, (s) => {
+                    setMyFullJoinedMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => new Date(b.date) - new Date(a.date)));
+                });
+
+                return () => { unsubCreated(); unsubJoined(); }
+            }, [user, db]);
+
+            // Listener General (Equipos, Invitaciones)
             useEffect(() => {
                 if(!user || !db) return;
                 const unsubTeam = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'teams'), (s) => {
@@ -328,6 +354,7 @@
                 return () => { unsubTeam(); unsubInv(); }
             }, [user, db]);
 
+            // Listener Feed Público (Limitado a 7 días atrás)
             useEffect(() => {
                 if(!db) return;
                 const qM = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('date', '>=', sevenDaysAgoString));
@@ -454,7 +481,7 @@
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'players'), {
                         uid: user.uid, 
                         name: userProfile?.nickname || user.displayName, 
-                        position: postulationPosition, // USA LA POSICION SELECCIONADA EN EL MOMENTO
+                        position: postulationPosition, 
                         zone: 'La Plata',
                         level: playerPostulationLevel, 
                         rating: 0, ratingCount: 0, status: 'Disponible', createdAt: serverTimestamp()
@@ -471,15 +498,13 @@
                 if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { name: nicknameInput });
             };
 
-            // FUNCIÓN PARA ACTUALIZAR LA POSICIÓN EN EL PERFIL
             const handleUpdatePosition = async (newPos) => {
                 if(!user) return;
                 const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
                 await updateDoc(userRef, { position: newPos });
                 setUserProfile({ ...userProfile, position: newPos });
-                setPostulationPosition(newPos); // Actualiza también el selector de postulación
+                setPostulationPosition(newPos);
                 setIsEditingPosition(false);
-                // Si ya está postulado, actualizamos esa postulación también (opcional, pero buena práctica)
                 if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { position: newPos });
             };
             
@@ -681,7 +706,7 @@
                 );
             }
 
-            // FEED FILTRADO
+            // FEED FILTRADO - Aquí es donde "desaparecen" los viejos de la vista
             const feedMatches = matches.filter(m => 
                 (formatFilter === 'Todos' || m.format === formatFilter) && 
                 (zoneFilter === 'Todas' || m.zone === zoneFilter) &&
@@ -691,7 +716,6 @@
             return (
                 <div className="flex-1 flex flex-col pb-24">
                     <header className="bg-gradient-to-r from-[#003300] to-[#004d26] border-b-4 border-[#00ff55] sticky top-0 z-50 shadow-xl">
-                        {/* HEADER MÓVIL */}
                         <div className="sm:hidden flex flex-col w-full">
                             <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-[#001a00]">
                                 <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-8 object-contain" />
@@ -714,7 +738,6 @@
                             </div>
                         </div>
 
-                        {/* HEADER DESKTOP */}
                         <div className="hidden sm:flex h-16 px-4 items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <img src="https://i.imgur.com/aVwYCPF.png" alt="El Capitán" className="h-10 object-contain" />
@@ -830,7 +853,7 @@
                             </>
                         )}
                         
-                        {/* VISTA TEAM */}
+                        {/* VISTAS EXTRAS: TEAM, PROFILE... (Mantenidas igual) */}
                         {view === 'team' && (
                             <div className="lg:col-span-12">
                                 <div className="bg-[#1a1a1a] p-4 rounded text-white text-center">
@@ -988,15 +1011,17 @@
                                     </div>
                                 </div>
 
-                                {/* FIX: Estadísticas en Perfil */}
+                                {/* FIX: Estadísticas usando historial COMPLETO, no solo feed reciente */}
                                 <div className="grid grid-cols-2 gap-4 mt-6 text-left">
                                     <div className="bg-gray-800 p-3 rounded border border-gray-700">
                                         <div className="text-xs text-gray-400 uppercase">Partidos Creados</div>
-                                        <div className="text-xl font-bold text-[#00ff55]">{myOrganizedMatches.length}</div>
+                                        {/* USA LA LISTA COMPLETA */}
+                                        <div className="text-xl font-bold text-[#00ff55]">{myFullHistoryMatches.length}</div>
                                     </div>
                                     <div className="bg-gray-800 p-3 rounded border border-gray-700">
                                         <div className="text-xs text-gray-400 uppercase">Partidos Jugados</div>
-                                        <div className="text-xl font-bold text-white">{matchesJoined}</div>
+                                        {/* USA LA LISTA COMPLETA */}
+                                        <div className="text-xl font-bold text-white">{myFullJoinedMatches.length}</div>
                                     </div>
                                     <div className="bg-gray-800 p-3 rounded border border-gray-700 col-span-2">
                                         <div className="text-xs text-gray-400 uppercase">Mi Equipo</div>
@@ -1014,24 +1039,26 @@
                                     </div>
                                 </div>
 
-                                {/* ACORDEÓN DESPLEGABLE */}
+                                {/* ACORDEÓN DESPLEGABLE: Historial Completo */}
                                 <div className="mt-4">
                                     <button 
                                         onClick={() => setShowStatsDetails(!showStatsDetails)} 
                                         className="w-full flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700 text-white font-bold text-sm hover:bg-gray-700 transition-colors"
                                     >
-                                        <span>VER HISTORIAL RECIENTE</span>
+                                        <span>VER HISTORIAL COMPLETO</span>
                                         {showStatsDetails ? <ChevUp size={16}/> : <ChevDown size={16}/>}
                                     </button>
 
                                     {showStatsDetails && (
                                         <div className="mt-2 bg-[#1a1a1a] border border-gray-800 rounded p-3 text-left space-y-4 modal-animate">
-                                            <p className="text-[10px] text-gray-500 italic text-center">Mostrando actividad reciente</p>
+                                            <p className="text-[10px] text-gray-500 italic text-center">Mostrando todo tu historial</p>
+                                            
+                                            {/* LISTA DE PARTIDOS CREADOS (HISTÓRICO) */}
                                             <div>
-                                                <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Organizados por mí ({myOrganizedMatches.length})</h4>
-                                                {myOrganizedMatches.length > 0 ? (
+                                                <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Organizados por mí ({myFullHistoryMatches.length})</h4>
+                                                {myFullHistoryMatches.length > 0 ? (
                                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                        {myOrganizedMatches.map(m => (
+                                                        {myFullHistoryMatches.map(m => (
                                                             <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-[#00ff55]">
                                                                 <div>
                                                                     <div className="font-bold text-white">{m.teamName}</div>
@@ -1039,6 +1066,7 @@
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <span className="block bg-gray-800 px-1.5 py-0.5 rounded text-[9px] mb-1">{m.format}</span>
+                                                                    {/* Botón rápido para borrar si es viejo */}
                                                                     <button onClick={() => handleDeleteMatch(m.id)} className="text-red-500 hover:text-white p-1"><Trash2 size={12}/></button>
                                                                 </div>
                                                             </div>
@@ -1049,11 +1077,12 @@
                                                 )}
                                             </div>
 
+                                            {/* LISTA DE PARTIDOS JUGADOS (HISTÓRICO) */}
                                             <div>
-                                                <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Partidos donde juego ({playedMatchesList.length})</h4>
-                                                {playedMatchesList.length > 0 ? (
+                                                <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Partidos donde juego ({myFullJoinedMatches.length})</h4>
+                                                {myFullJoinedMatches.length > 0 ? (
                                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                        {playedMatchesList.map(m => (
+                                                        {myFullJoinedMatches.map(m => (
                                                             <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-blue-500">
                                                                 <div>
                                                                     <span className="text-white font-bold">{m.teamName}</span>
@@ -1068,6 +1097,7 @@
                                                 )}
                                             </div>
 
+                                            {/* LISTA DE POSTULACIONES */}
                                             <div>
                                                 <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Mis Postulaciones ({myPostulations.length})</h4>
                                                 {myPostulations.length > 0 ? (
