@@ -670,7 +670,7 @@
                         zone: 'La Plata',
                         level: playerPostulationLevel,
                         gender: playerPostulationGender, 
-                        isPromoted: isPostulationPromoted, // GESTIONAR ESTADO
+                        isPromoted: userProfile?.isPromoted || false,
                         rating: 0, ratingCount: 0, status: 'Disponible', createdAt: serverTimestamp()
                     });
                     setFeedbackModal({ show: true, type: 'success', title: '¡LISTO!', message: 'Te has postulado correctamente.' });
