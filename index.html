@@ -89,6 +89,32 @@
         ::-webkit-calendar-picker-indicator:hover {
             opacity: 1;
         }
+        
+        /* --- ESTILOS DE INPUTS Y SELECTS UNIFICADOS (FIX VISUAL) --- */
+        .app-input, .app-select {
+            background-color: #1f2937; /* Gris oscuro sólido, no transparente */
+            color: #ffffff; /* Texto blanco brillante */
+            border: 1px solid #374151; /* Borde gris medio */
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            width: 100%;
+            outline: none;
+            transition: all 0.2s;
+            appearance: none; /* Limpia estilos nativos del celular */
+        }
+        
+        .app-input:focus, .app-select:focus {
+            border-color: #00ff55; /* Borde verde al tocar */
+            background-color: #111827;
+        }
+
+        /* Fix para las opciones del select en móviles */
+        .app-select option {
+            background-color: #1f2937;
+            color: white;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
@@ -111,7 +137,7 @@
             Link as LinkIcon, User, LogOut, Mail, Lock, Trash2, Ban, Trophy, 
             Activity, ArrowLeft, HelpCircle, FileText, Lock as LockIcon, Bell, 
             CheckCircle, XCircle, Send, Crown, UserPlus, Share2, Edit2, Save, MinusCircle,
-            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX, Clock, MessageCircle, Beer, Flame, Banknote, Image as ImageIcon, Camera, Info, Check, X as XIcon, Inbox, Sparkles, BarChart2
+            Home, Zap, ClipboardList, AlertTriangle, Download, UserCheck, UserX, Clock, MessageCircle, Beer, Flame, Banknote, Image as ImageIcon, Camera, Info, Check, X as XIcon, Inbox, Sparkles, BarChart2, Filter as FilterIcon
         } from 'https://esm.sh/lucide-react@0.294.0';
         
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -147,11 +173,10 @@
             "Zona Este": ["Ensenada", "Berisso"]
         };
 
-        const MATCH_LEVELS = ["Tranqui / Joda 🍻", "Picado Medio ⚽", "A Morir (Competitivo) 🏆"];
-        const MATCH_GENDERS = ["Hombres 🚹", "Mujeres 🚺", "Mixto ⚧️"];
+        const MATCH_LEVELS = ["Tranqui / Joda", "Picado Medio", "A Morir (Competitivo)"];
+        const MATCH_GENDERS = ["Hombres", "Mujeres", "Mixto"];
         const POSITIONS_LIST = ["Arquero", "Defensor", "Medio", "Delantero", "Polifuncional"];
         
-        // REGLAS DE NEGOCIO
         const DAYS_BETWEEN_UPDATES = 30;
         const MAX_ACTIVE_APPLICATIONS_PER_USER = 4;
         const MAX_APPLICATIONS_PER_SLOT = 10; 
@@ -204,13 +229,13 @@
 
         // --- DATOS FICTICIOS (Seeders) ---
         const INITIAL_MATCHES = [
-            { date: yesterdayString, time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', gender: 'Hombres 🚹', missing: 0, position: 'Arquero', teamName: 'Los Rotos FC', urgent: false, playersSigned: ['dummy_1', 'dummy_2'], level: 'Picado Medio ⚽', applicationsCount: 0, isPromoted: true },
-            { date: today, time: '21:00', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', gender: 'Mixto ⚧️', isChallenge: true, stake: 'La cancha ($30.000)', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true, level: 'A Morir (Competitivo) 🏆', applicationsCount: 2 },
-            { date: tomorrow, time: '19:00', place: 'La Plaza', zone: 'City Bell', format: 'F5', type: 'player', missing: 2, gender: 'Mujeres 🚺', position: 'Defensores', teamName: 'Inter CB', urgent: false, level: 'Tranqui / Joda 🍻', applicationsCount: 5 },
+            { date: yesterdayString, time: '20:00', place: 'Predio El Rincón', zone: 'La Plata (Casco Urbano)', format: 'F5', type: 'player', gender: 'Hombres', missing: 0, position: 'Arquero', teamName: 'Los Rotos FC', urgent: false, playersSigned: ['dummy_1', 'dummy_2'], level: 'Picado Medio', applicationsCount: 0, isPromoted: true },
+            { date: today, time: '21:00', place: 'Club Atl. Villa Elisa', zone: 'Villa Elisa', format: 'F7', type: 'rival', gender: 'Mixto', isChallenge: true, stake: 'La cancha ($30.000)', missing: 0, position: 'Equipo Completo', teamName: 'Defensores VE', urgent: true, level: 'A Morir (Competitivo)', applicationsCount: 2 },
+            { date: tomorrow, time: '19:00', place: 'La Plaza', zone: 'City Bell', format: 'F5', type: 'player', missing: 2, gender: 'Mujeres', position: 'Defensores', teamName: 'Inter CB', urgent: false, level: 'Tranqui / Joda', applicationsCount: 5 },
         ];
         const INITIAL_PLAYERS = [
-            { uid: 'dummy_1', name: 'Lucho M.', position: 'Arquero', zone: 'Villa Elisa', rating: 4.5, ratingCount: 10, status: 'Disponible', level: 'A Morir (Competitivo) 🏆', gender: 'Hombres 🚹', isPromoted: true },
-            { uid: 'dummy_2', name: 'El Distinto', position: 'Medio', zone: 'La Plata', rating: 5.0, ratingCount: 3, status: 'Disponible', level: 'Picado Medio ⚽', gender: 'Mixto ⚧️' },
+            { uid: 'dummy_1', name: 'Lucho M.', position: 'Arquero', zone: 'Villa Elisa', rating: 4.5, ratingCount: 10, status: 'Disponible', level: 'A Morir (Competitivo)', gender: 'Hombres', isPromoted: true },
+            { uid: 'dummy_2', name: 'El Distinto', position: 'Medio', zone: 'La Plata', rating: 5.0, ratingCount: 3, status: 'Disponible', level: 'Picado Medio', gender: 'Mixto' },
         ];
 
         // --- APP PRINCIPAL ---
@@ -265,7 +290,7 @@
             const [showStatsDetails, setShowStatsDetails] = useState(false);
             
             // UI States
-            const [historyEnabled, setHistoryEnabled] = useState(false);
+            const [historyEnabled, setHistoryEnabled] = useState(false); // DEFINIDO ANTES DE USARSE
 
             const [showLoginModal, setShowLoginModal] = useState(false);
             const [showInviteModal, setShowInviteModal] = useState(false);
@@ -289,11 +314,11 @@
             const [targetPlayer, setTargetPlayer] = useState(null);
             const [newTeamName, setNewTeamName] = useState('');
             const [teamLogoFile, setTeamLogoFile] = useState(null);
-            const [publishData, setPublishData] = useState({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '', date: '', level: 'Picado Medio ⚽', gender: 'Hombres 🚹', isChallenge: false, stake: '', isPromoted: false });
+            const [publishData, setPublishData] = useState({ type: 'player', format: 'F5', zone: 'La Plata (Casco Urbano)', place: '', time: '', date: '', level: 'Picado Medio', gender: 'Hombres', isChallenge: false, stake: '', isPromoted: false });
             const [neededPositions, setNeededPositions] = useState(['Cualquiera']);
-            const [playerPostulationLevel, setPlayerPostulationLevel] = useState('Picado Medio ⚽');
+            const [playerPostulationLevel, setPlayerPostulationLevel] = useState('Picado Medio');
             const [postulationPosition, setPostulationPosition] = useState('Polifuncional'); 
-            const [playerPostulationGender, setPlayerPostulationGender] = useState('Hombres 🚹');
+            const [playerPostulationGender, setPlayerPostulationGender] = useState('Hombres');
             const [isPostulationPromoted, setIsPostulationPromoted] = useState(false);
             
             // Edit States
@@ -316,8 +341,15 @@
 
             // Computed
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
+            
+            // FIX: LISTAS UNIFICADAS PARA MOSTRAR CORRECTAMENTE EL HISTORIAL O EL FEED
             const myOrganizedMatches = historyEnabled ? myFullHistoryMatches : matches.filter(m => m.createdBy === user?.uid); 
-            const matchesJoined = historyEnabled ? myFullJoinedMatches.length : (user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)).length : 0);
+            // Si el historial está habilitado, usamos la lista completa. Si no, usamos la lista filtrada del feed (solo recientes).
+            const myPlayedMatches = historyEnabled ? myFullJoinedMatches : (user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)) : []);
+            
+            // Contadores
+            const createdCount = myOrganizedMatches.length;
+            const playedCount = myPlayedMatches.length;
             
             const myPostulations = user ? players.filter(p => p.uid === user.uid) : [];
             const userRating = userProfile?.rating || 0;
@@ -367,29 +399,27 @@
                 if(userProfile?.position) setPostulationPosition(userProfile.position);
             }, [userProfile]);
 
-            // LISTENER ADMIN: Solo se activa si es admin y entra a la vista 'admin'
-            useEffect(() => {
-                if(!user || !db || !isAdmin || view !== 'admin') return;
-
-                const unsubUsers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (s) => {
-                    setAdminData(prev => ({...prev, totalUsers: s.size, allUsersList: s.docs.map(d => ({id: d.id, ...d.data()})) }));
-                });
-
-                return () => unsubUsers();
-            }, [user, db, view, isAdmin]);
-
-
             // LISTENER DE MI HISTORIAL COMPLETO (BAJO DEMANDA)
             useEffect(() => {
                 if(!user || !db || user.isAnonymous || !historyEnabled) return; 
                 
                 const qCreated = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('createdBy', '==', user.uid));
                 const unsubCreated = onSnapshot(qCreated, (s) => {
-                    setMyFullHistoryMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => new Date(b.date) - new Date(a.date)));
+                    // FIX: Safe date sorting
+                    setMyFullHistoryMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => {
+                        const dateA = a.date ? new Date(a.date) : new Date(0);
+                        const dateB = b.date ? new Date(b.date) : new Date(0);
+                        return dateB - dateA;
+                    }));
                 });
                 const qJoined = query(collection(db, 'artifacts', appId, 'public', 'data', 'matches'), where('playersSigned', 'array-contains', user.uid));
                 const unsubJoined = onSnapshot(qJoined, (s) => {
-                    setMyFullJoinedMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => new Date(b.date) - new Date(a.date)));
+                    // FIX: Safe date sorting
+                    setMyFullJoinedMatches(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => {
+                        const dateA = a.date ? new Date(a.date) : new Date(0);
+                        const dateB = b.date ? new Date(b.date) : new Date(0);
+                        return dateB - dateA;
+                    }));
                 });
                 return () => { unsubCreated(); unsubJoined(); }
             }, [user, db, historyEnabled]);
@@ -415,7 +445,6 @@
                     const d = s.docs.map(doc => ({id: doc.id, ...doc.data()}));
                     if(d.length === 0) seedMatches();
                     else setMatches(d.sort((a,b) => {
-                        // FIX: Ordenamiento Premium (Promoted) primero
                         if (a.isPromoted && !b.isPromoted) return -1;
                         if (!a.isPromoted && b.isPromoted) return 1;
                         return new Date(b.date+'T'+b.time) - new Date(a.date+'T'+a.time);
@@ -428,7 +457,6 @@
                     const d = s.docs.map(doc => ({id: doc.id, ...doc.data()}));
                     if(d.length === 0) seedPlayers();
                     else setPlayers(d.sort((a,b) => {
-                        // FIX: Ordenamiento Premium (Promoted) primero
                         if (a.isPromoted && !b.isPromoted) return -1;
                         if (!a.isPromoted && b.isPromoted) return 1;
                          return 0;
@@ -888,7 +916,7 @@
                             ) : (
                                 <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95 border border-gray-200">
                                     <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.17c-.22-.66-.35-1.36-.35-2.17s.13-1.51.35-2.17V7.61H2.18C.79 10.37.79 13.63 2.18 16.39l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                                    Continuar con Google
+                                    Ingresar con Google
                                 </button>
                             )}
                             <button onClick={handleGuest} className="w-full bg-white/5 hover:bg-white/10 text-[#00ff55] border-2 border-[#00ff55]/50 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all"><Users size={20}/> Entrar como Invitado</button>
@@ -1061,12 +1089,14 @@
                                 <div className="lg:col-span-8 space-y-4">
                                     <div className="bg-gradient-to-r from-[#1b4d2e] to-[#2e7d32] px-4 py-3 rounded-t-lg border-b-2 border-[#4caf50] flex flex-wrap gap-2 justify-between items-center text-white">
                                         <h2 className="font-bold flex items-center gap-2"><Calendar size={20} className="text-[#00ff55]"/> PARTIDOS</h2>
-                                        <div className="flex gap-2">
-                                            <select className="bg-black/30 rounded text-xs p-1 outline-none border border-white/20" onChange={e => setFormatFilter(e.target.value)}><option value="Todos">Fmt: Todos</option><option value="F5">F5</option><option value="F7">F7</option><option value="F9">F9</option><option value="F11">F11</option></select>
-                                            <select className="bg-black/30 rounded text-xs p-1 outline-none border border-white/20" onChange={e => setZoneFilter(e.target.value)}><option value="Todas">Zonas: Todas</option><ZoneSelectOptions/></select>
+                                        <div className="flex gap-2 w-full sm:w-auto">
+                                            {/* FIX: Clases .app-select para alto contraste */}
+                                            <select className="app-select" onChange={e => setFormatFilter(e.target.value)}><option value="Todos">Fmt: Todos</option><option value="F5">F5</option><option value="F7">F7</option><option value="F9">F9</option><option value="F11">F11</option></select>
+                                            <select className="app-select" onChange={e => setZoneFilter(e.target.value)}><option value="Todas">Zonas: Todas</option><ZoneSelectOptions/></select>
                                         </div>
                                     </div>
                                     <div className="bg-[#dce6dc] rounded-b-lg overflow-hidden text-gray-800 min-h-[200px]">
+                                        
                                         {loading ? <div className="p-8 text-center text-gray-500">Cargando la cancha...</div> : 
                                          feedMatches.map(m => {
                                             const isSigned = m.playersSigned?.includes(user?.uid);
@@ -1165,18 +1195,21 @@
                                             );
                                         })}
                                         <div className="mt-2 pt-2 border-t border-gray-300">
-                                            <div className="flex gap-2 mb-2">
-                                                <select className="flex-1 text-xs p-1 rounded border" value={postulationPosition} onChange={e=>setPostulationPosition(e.target.value)}>
-                                                    {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
-                                                </select>
-                                                <select className="flex-1 text-xs p-1 rounded border" value={playerPostulationLevel} onChange={e=>setPlayerPostulationLevel(e.target.value)}>
+                                            {/* FIX: Reorganización de inputs para evitar desbordamiento y mejor contraste */}
+                                            <div className="space-y-2 mb-2">
+                                                <div className="flex gap-2">
+                                                    <select className="app-select flex-1" value={postulationPosition} onChange={e=>setPostulationPosition(e.target.value)}>
+                                                        {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                                                    </select>
+                                                    <select className="app-select flex-1" value={playerPostulationGender} onChange={e=>setPlayerPostulationGender(e.target.value)}>
+                                                        {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                                                    </select>
+                                                </div>
+                                                <select className="app-select w-full" value={playerPostulationLevel} onChange={e=>setPlayerPostulationLevel(e.target.value)}>
                                                     {MATCH_LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
                                                 </select>
-                                                {/* NUEVO SELECTOR DE GÉNERO PARA JUGADOR LIBRE */}
-                                                <select className="flex-1 text-xs p-1 rounded border" value={playerPostulationGender} onChange={e=>setPlayerPostulationGender(e.target.value)}>
-                                                    {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                                                </select>
                                             </div>
+
                                             {/* CHECKBOX PARA SIMULAR DESTACAR (PREMIUM) */}
                                             <label className="flex items-center gap-2 mb-2 text-xs text-gray-600 cursor-pointer">
                                                 <input type="checkbox" checked={isPostulationPromoted} onChange={e => setIsPostulationPromoted(e.target.checked)} className="accent-[#00ff55]"/>
@@ -1228,7 +1261,7 @@
                                                             <input 
                                                                 value={teamNameInput}
                                                                 onChange={(e) => setTeamNameInput(e.target.value)}
-                                                                className="bg-black/50 text-white border border-[#00ff55] rounded px-2 py-1 text-lg font-bold w-full outline-none"
+                                                                className="app-input py-1 text-lg font-bold w-full"
                                                                 placeholder="Nombre Equipo"
                                                             />
                                                             <button onClick={handleUpdateTeamName} className="text-[#00ff55]"><Save size={20}/></button>
@@ -1307,6 +1340,7 @@
                                             <Shield size={64} className="mx-auto text-gray-700 mb-6 opacity-50"/>
                                             <h3 className="text-2xl font-black text-white italic mb-2">SIN EQUIPO</h3>
                                             <p className="text-gray-400 text-sm mb-8 max-w-xs mx-auto">Crea tu propio equipo para gestionar tu plantel o busca uno existente.</p>
+                                            
                                             <div className="flex flex-col gap-3 max-w-xs mx-auto">
                                                 <button onClick={() => setShowCreateTeamModal(true)} className="bg-[#00ff55] text-black font-black px-6 py-4 rounded-lg shadow-[0_0_20px_rgba(0,255,85,0.3)] hover:scale-105 transition-transform flex items-center justify-center gap-2 uppercase tracking-wider">
                                                     <PlusCircle size={20}/> Crear Equipo
@@ -1322,7 +1356,8 @@
                         )}
                         {view === 'profile' && (
                             <div className="lg:col-span-12">
-                                <div className="bg-[#1a1a1a] p-6 rounded flex items-center gap-4">
+                                {/* FIX: Fondo de tarjeta de perfil más claro para contraste con el body negro */}
+                                <div className="bg-gray-800 p-6 rounded flex items-center gap-4">
                                     {user?.photoURL ? (
                                         <img src={user.photoURL} alt="Perfil" className="w-20 h-20 rounded-full object-cover border-2 border-[#00ff55]" />
                                     ) : (
@@ -1334,7 +1369,7 @@
                                                 <input 
                                                     value={nicknameInput} 
                                                     onChange={e=>setNicknameInput(e.target.value)} 
-                                                    className="bg-black/50 text-white border border-[#00ff55] rounded px-2 py-1 text-lg font-bold w-full outline-none"
+                                                    className="app-input rounded px-2 py-1 text-lg font-bold w-full"
                                                     placeholder="Nuevo apodo"
                                                 />
                                                 <button onClick={handleUpdateNickname} className="text-[#00ff55]"><Save size={20}/></button>
@@ -1346,14 +1381,14 @@
                                                     <div className="text-2xl font-black text-white italic">{userProfile?.nickname || user?.displayName}</div>
                                                     <button onClick={() => { setNicknameInput(userProfile?.nickname || user?.displayName); setIsEditingNickname(true); }} className="text-gray-500 hover:text-white"><Edit2 size={16}/></button>
                                                 </div>
-                                                <div className="text-gray-500 text-xs mb-1">{user?.email}</div>
+                                                <div className="text-gray-400 text-xs mb-1">{user?.email}</div>
                                                 
                                                 {isEditingPosition ? (
                                                     <div className="flex items-center gap-2">
                                                         <select 
                                                             value={userProfile?.position} 
                                                             onChange={(e) => handleUpdatePosition(e.target.value)}
-                                                            className="bg-black/50 text-[#00ff55] text-xs font-bold border border-[#00ff55] rounded px-1 outline-none"
+                                                            className="app-select rounded px-1 text-xs"
                                                         >
                                                             {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                                                         </select>
@@ -1536,14 +1571,14 @@
                                      {/* ... inputs del form ... */}
                                      <div className="flex gap-2"><button type="button" onClick={() => setPublishData({...publishData, type: 'rival'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='rival'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>RIVAL</button><button type="button" onClick={() => setPublishData({...publishData, type: 'player'})} className={`flex-1 py-1 rounded text-xs font-bold ${publishData.type==='player'?'bg-[#00ff55] text-black':'bg-gray-800'}`}>JUGADOR</button></div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Formato</label><select value={publishData.format} onChange={(e) => setPublishData({...publishData, format: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><option>F5</option><option>F7</option><option>F9</option><option>F11</option></select></div>
-                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Zona</label><select value={publishData.zone} onChange={(e) => setPublishData({...publishData, zone: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]"><ZoneSelectOptions /></select></div>
+                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Formato</label><select value={publishData.format} onChange={(e) => setPublishData({...publishData, format: e.target.value})} className="app-select"><option>F5</option><option>F7</option><option>F9</option><option>F11</option></select></div>
+                                        <div className="space-y-1"><label className="text-gray-400 text-xs font-bold ml-1">Zona</label><select value={publishData.zone} onChange={(e) => setPublishData({...publishData, zone: e.target.value})} className="app-select"><ZoneSelectOptions /></select></div>
                                     </div>
                                     
                                     {/* SELECCIÓN DE NIVEL */}
                                     <div className="space-y-1">
                                         <label className="text-gray-400 text-xs font-bold ml-1">Nivel / Intensidad</label>
-                                        <select value={publishData.level} onChange={(e) => setPublishData({...publishData, level: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]">
+                                        <select value={publishData.level} onChange={(e) => setPublishData({...publishData, level: e.target.value})} className="app-select">
                                             {MATCH_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                                         </select>
                                     </div>
@@ -1556,7 +1591,7 @@
                                                 <button type="button" onClick={() => setPublishData({...publishData, isChallenge: true})} className={`flex-1 py-1.5 text-xs font-bold rounded border ${publishData.isChallenge ? 'bg-yellow-600 text-black border-yellow-500' : 'bg-transparent text-gray-500 border-transparent'}`}>🏆 DESAFÍO</button>
                                             </div>
                                             {publishData.isChallenge && (
-                                                <input placeholder="¿Qué se juega? (Ej: La cancha, $1000 c/u)" className="w-full bg-black/50 p-2 rounded text-sm border border-yellow-600 text-yellow-100 placeholder-yellow-700/50" value={publishData.stake} onChange={e=>setPublishData({...publishData, stake:e.target.value})} required/>
+                                                <input placeholder="¿Qué se juega? (Ej: La cancha, $1000 c/u)" className="app-input" value={publishData.stake} onChange={e=>setPublishData({...publishData, stake:e.target.value})} required/>
                                             )}
                                         </div>
                                     )}
@@ -1564,7 +1599,7 @@
                                     {/* NUEVO: SELECCIÓN DE GÉNERO EN PUBLICAR PARTIDO (Faltaba aquí) */}
                                     <div className="space-y-1">
                                         <label className="text-gray-400 text-xs font-bold ml-1">Género</label>
-                                        <select value={publishData.gender} onChange={(e) => setPublishData({...publishData, gender: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]">
+                                        <select value={publishData.gender} onChange={(e) => setPublishData({...publishData, gender: e.target.value})} className="app-select">
                                             {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
                                         </select>
                                     </div>
@@ -1573,7 +1608,7 @@
                                         <label className="text-gray-400 text-xs font-bold ml-1">Fecha (Máx: 1 Semana)</label>
                                         <input 
                                             type="date" 
-                                            className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700 text-white" 
+                                            className="app-input" 
                                             value={publishData.date} 
                                             min={today}
                                             max={maxPublishDate}
@@ -1581,15 +1616,15 @@
                                             required
                                         />
                                     </div>
-                                    <input placeholder="Cancha" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
-                                    <input type="time" className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
+                                    <input placeholder="Cancha" className="app-input" value={publishData.place} onChange={e=>setPublishData({...publishData, place:e.target.value})} required/>
+                                    <input type="time" className="app-input" value={publishData.time} onChange={e=>setPublishData({...publishData, time:e.target.value})} required/>
                                     
                                     {publishData.type === 'player' && (
                                         <div className="space-y-2 p-3 bg-gray-800/50 rounded border border-dashed border-gray-600">
                                             <label className="text-gray-400 text-xs font-bold">Posiciones Necesarias</label>
                                             {neededPositions.map((pos, index) => (
                                                 <div key={index} className="flex gap-2">
-                                                    <select value={pos} onChange={(e) => handleSlotChange(index, e.target.value)} className="flex-1 bg-black/50 border border-gray-700 text-white rounded py-1.5 px-2 text-sm outline-none focus:border-[#00ff55]"><option>Cualquiera</option><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option></select>
+                                                    <select value={pos} onChange={(e) => handleSlotChange(index, e.target.value)} className="app-select flex-1"><option>Cualquiera</option><option>Arquero</option><option>Defensor</option><option>Medio</option><option>Delantero</option></select>
                                                     {neededPositions.length > 1 && (<button type="button" onClick={() => handleRemoveSlot(index)} className="text-red-500 hover:text-white"><MinusCircle size={18}/></button>)}
                                                 </div>
                                             ))}
@@ -1619,7 +1654,7 @@
                                 <form onSubmit={handleCreateTeam} className="space-y-4">
                                     <div>
                                         <label className="text-gray-400 text-xs font-bold block mb-1">Nombre del Equipo</label>
-                                        <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} className="w-full bg-black/50 p-2 rounded text-sm border border-gray-700 text-white focus:border-[#00ff55] outline-none" placeholder="Ej: Los Rotos FC" required />
+                                        <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} className="app-input" placeholder="Ej: Los Rotos FC" required />
                                     </div>
                                     <div>
                                         <label className="text-gray-400 text-xs font-bold block mb-1">Escudo (Opcional)</label>
@@ -1645,7 +1680,7 @@
                                     <button onClick={() => setShowTeamSearchModal(false)}><X size={20} className="text-gray-500"/></button>
                                 </div>
                                 <form onSubmit={handleSearchTeams} className="flex gap-2 mb-4">
-                                    <input value={teamSearchQuery} onChange={e=>setTeamSearchQuery(e.target.value)} className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-2 text-sm text-white" placeholder="Nombre del equipo..."/>
+                                    <input value={teamSearchQuery} onChange={e=>setTeamSearchQuery(e.target.value)} className="app-input flex-1" placeholder="Nombre del equipo..."/>
                                     <button type="submit" className="bg-[#00ff55] text-black p-2 rounded"><Search size={18}/></button>
                                 </form>
                                 <div className="flex-1 overflow-y-auto space-y-2">
@@ -1674,7 +1709,7 @@
                                     <button onClick={() => setShowScoutModal(false)}><X size={20} className="text-gray-500"/></button>
                                 </div>
                                 <form onSubmit={handleSearchUsers} className="flex gap-2 mb-4">
-                                     <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-2 text-sm text-white" placeholder="Nombre de jugador..."/>
+                                     <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="app-input flex-1" placeholder="Nombre de jugador..."/>
                                      <button type="submit" className="bg-[#00ff55] text-black p-2 rounded"><Search size={18}/></button>
                                 </form>
                                  <div className="flex-1 overflow-y-auto space-y-2">
@@ -1707,8 +1742,8 @@
                                 <h3 className="text-white font-bold text-lg mb-2">Invitar a {targetPlayer?.name}</h3>
                                 <p className="text-xs text-gray-400 mb-4">Envía una propuesta formal para que se una a tu equipo.</p>
                                 <form onSubmit={sendInvitation} className="space-y-3">
-                                     <input value={inviteData.place} onChange={e=>setInviteData({...inviteData, place:e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded p-2 text-sm text-white" placeholder="Lugar / Motivo (Opcional)" />
-                                     <input type="time" value={inviteData.time} onChange={e=>setInviteData({...inviteData, time:e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded p-2 text-sm text-white" />
+                                     <input value={inviteData.place} onChange={e=>setInviteData({...inviteData, place:e.target.value})} className="app-input" placeholder="Lugar / Motivo (Opcional)" />
+                                     <input type="time" value={inviteData.time} onChange={e=>setInviteData({...inviteData, time:e.target.value})} className="app-input" />
                                      <div className="flex gap-2 mt-4">
                                          <button type="button" onClick={() => setShowInviteModal(false)} className="flex-1 py-2 text-gray-500 text-xs font-bold">CANCELAR</button>
                                          <button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#00ff55] text-black text-xs font-black rounded hover:bg-white">ENVIAR</button>
