@@ -247,6 +247,9 @@
             
             // ADMIN STATE
             const [adminData, setAdminData] = useState({ totalUsers: 0, allUsersList: [] });
+            
+            // ESTADO PARA EL FILTRO DEL DASHBOARD (NUEVO)
+            const [dashboardTimeRange, setDashboardTimeRange] = useState('all');
 
             const getFirebaseConfig = () => ({
                 apiKey: "AIzaSyC8att6xIu--GeDn7uY6gHkIrwUU1UhwpM",
@@ -290,7 +293,7 @@
             const [showStatsDetails, setShowStatsDetails] = useState(false);
             
             // UI States
-            const [historyEnabled, setHistoryEnabled] = useState(false); // DEFINIDO ANTES DE USARSE
+            const [historyEnabled, setHistoryEnabled] = useState(false);
 
             const [showLoginModal, setShowLoginModal] = useState(false);
             const [showInviteModal, setShowInviteModal] = useState(false);
@@ -325,6 +328,7 @@
             const [isEditingNickname, setIsEditingNickname] = useState(false);
             const [isEditingPosition, setIsEditingPosition] = useState(false);
             const [nicknameInput, setNicknameInput] = useState('');
+            const [birthDateInput, setBirthDateInput] = useState(''); // NUEVO: EDAD
             const [isEditingTeamName, setIsEditingTeamName] = useState(false);
             const [teamNameInput, setTeamNameInput] = useState('');
 
@@ -339,13 +343,20 @@
             
             const [pendingLogoFile, setPendingLogoFile] = useState(null);
 
+            // HELPER EDAD
+            const calculateAge = (dob) => {
+                if (!dob) return null;
+                const diff = Date.now() - new Date(dob).getTime();
+                const ageDate = new Date(diff); 
+                return Math.abs(ageDate.getUTCFullYear() - 1970);
+            };
+
             // Computed
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
             // --- ADMIN: CONTAR USUARIOS REALES ---
             useEffect(() => {
                 if (!db || !user || !isAdmin) return;
                 const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (s) => {
-                     // s.size nos da la cantidad directa de documentos
                      setAdminData({ 
                         totalUsers: s.size, 
                         allUsersList: s.docs.map(d => ({ uid: d.id, ...d.data() })) 
@@ -353,6 +364,12 @@
                 });
                 return () => unsub();
             }, [db, user, isAdmin]);
+
+            // Sincronizar input de fecha con el perfil (NUEVO)
+            useEffect(() => {
+                if(userProfile?.birthDate) setBirthDateInput(userProfile.birthDate);
+                if(userProfile?.nickname) setNicknameInput(userProfile.nickname);
+            }, [userProfile, isEditingNickname]);
             
             // FIX: LISTAS UNIFICADAS PARA MOSTRAR CORRECTAMENTE EL HISTORIAL O EL FEED
             const myOrganizedMatches = historyEnabled ? myFullHistoryMatches : matches.filter(m => m.createdBy === user?.uid); 
@@ -680,9 +697,10 @@
             const confirmUpdateNickname = async () => {
                  await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), { 
                      nickname: nicknameInput,
+                     birthDate: birthDateInput, // GUARDAR FECHA DE NACIMIENTO
                      lastNicknameUpdate: serverTimestamp() 
                  });
-                setUserProfile({ ...userProfile, nickname: nicknameInput, lastNicknameUpdate: Timestamp.now() });
+                setUserProfile({ ...userProfile, nickname: nicknameInput, birthDate: birthDateInput, lastNicknameUpdate: Timestamp.now() });
                 setIsEditingNickname(false);
                 if (myPlayerProfile) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', myPlayerProfile.id), { name: nicknameInput });
             };
@@ -1084,86 +1102,140 @@
                                     </div>
                                 </div>
                                 
-                                {/* NUEVO DASHBOARD ANALÍTICO (CORREGIDO Y SEGURO) */}
-                                <div className="space-y-6">
-                                    
-                                    {/* BARRA DE FILTROS (VISUAL) */}
-                                    <div className="flex justify-between items-center bg-gray-900 p-2 rounded border border-gray-700">
-                                        <div className="flex items-center gap-2">
-                                            <BarChart2 size={16} className="text-[#00ff55]"/>
-                                            <span className="text-xs font-bold text-white uppercase">Métricas de Rendimiento</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <select className="bg-black text-white text-[10px] border border-gray-600 rounded px-2 py-1"><option>Este Mes</option><option>Mes Pasado</option><option>Año Actual</option></select>
-                                            <button className="bg-[#00ff55] text-black text-[10px] font-bold px-3 py-1 rounded flex items-center gap-1"><FilterIcon size={10}/> FILTRAR</button>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* DASHBOARD COMERCIAL (SPONSORS & ANALYTICS) */}
+                                {(() => {
+                                    // 1. LÓGICA DE FILTRADO
+                                    const now = new Date();
+                                    const filterDate = (dateItem) => {
+                                        if (dashboardTimeRange === 'all') return true;
+                                        let d;
+                                        if (dateItem?.toDate) d = dateItem.toDate(); // Timestamp Firebase
+                                        else d = new Date(dateItem); // String
                                         
-                                        {/* GRÁFICO 1: HORARIOS PICO (HEATMAP DE BARRAS) */}
-                                        <div className="bg-[#1a1a1a] p-4 rounded border border-gray-700 shadow-lg">
-                                            <h4 className="text-gray-400 text-xs font-bold uppercase mb-4 flex items-center gap-2"><Clock size={14} className="text-yellow-400"/> Horarios Más Jugados</h4>
-                                            <div className="flex items-end justify-between h-32 gap-2 pt-2 border-b border-gray-800 pb-2">
-                                                {/* Lógica para calcular horas reales */}
-                                                {(() => {
-                                                    const timeStats = (matches || []).reduce((acc, m) => {
-                                                        const h = m.time ? m.time.split(':')[0] : '00';
-                                                        acc[h] = (acc[h] || 0) + 1;
-                                                        return acc;
-                                                    }, {});
-                                                    const maxVal = Math.max(...Object.values(timeStats), 1);
-                                                    // Mostramos horas clave
-                                                    return ['18', '19', '20', '21', '22', '23'].map(hour => {
-                                                        const count = timeStats[hour] || 0;
-                                                        const heightPercent = Math.max((count / maxVal) * 100, 10); // Mínimo 10% altura
-                                                        return (
-                                                            <div key={hour} className="flex flex-col items-center flex-1 group">
-                                                                <div className="text-[9px] text-[#00ff55] font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity">{count}p</div>
-                                                                <div 
-                                                                    style={{ height: heightPercent + '%' }} 
-                                                                    className={`w-full rounded-t transition-all duration-500 ${count > 0 ? 'bg-gradient-to-t from-[#003300] to-[#00ff55]' : 'bg-gray-800'}`}
-                                                                ></div>
-                                                                <div className="text-[10px] text-gray-500 mt-1 font-mono">{hour}:00</div>
-                                                            </div>
-                                                        )
-                                                    });
-                                                })()}
-                                            </div>
-                                            <p className="text-[9px] text-gray-500 mt-2 text-right italic">Basado en partidos activos</p>
-                                        </div>
+                                        if (dashboardTimeRange === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                        if (dashboardTimeRange === 'year') return d.getFullYear() === now.getFullYear();
+                                        return true;
+                                    };
 
-                                        {/* GRÁFICO 2: ZONAS MÁS ACTIVAS (LISTA DE PROGRESO) */}
-                                        <div className="bg-[#1a1a1a] p-4 rounded border border-gray-700 shadow-lg">
-                                            <h4 className="text-gray-400 text-xs font-bold uppercase mb-4 flex items-center gap-2"><MapPin size={14} className="text-blue-400"/> Zonas Calientes</h4>
-                                            <div className="space-y-3">
-                                                {(() => {
-                                                    const zoneStats = (matches || []).reduce((acc, m) => {
-                                                        acc[m.zone] = (acc[m.zone] || 0) + 1;
-                                                        return acc;
-                                                    }, {});
-                                                    const sortedZones = Object.entries(zoneStats).sort((a,b) => b[1] - a[1]).slice(0, 4);
-                                                    const maxZone = sortedZones[0]?.[1] || 1;
+                                    const fMatches = matches.filter(m => filterDate(m.date));
+                                    const fPlayers = players.filter(p => filterDate(p.createdAt));
 
-                                                    return sortedZones.length > 0 ? sortedZones.map(([zone, count]) => (
-                                                        <div key={zone}>
-                                                            <div className="flex justify-between text-[10px] text-gray-300 mb-1">
-                                                                <span className="font-bold">{zone}</span>
-                                                                <span>{count} Partidos</span>
-                                                            </div>
-                                                            <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                                                                <div 
-                                                                    style={{ width: (count / maxZone) * 100 + '%' }} 
-                                                                    className="h-full bg-blue-500 rounded-full"
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-                                                    )) : <div className="text-gray-500 text-xs italic text-center py-4">No hay datos suficientes</div>;
-                                                })()}
+                                    // 2. CÁLCULOS
+                                    const calcGender = (arr) => {
+                                        const total = arr.length || 1;
+                                        const h = arr.filter(x => x.gender === 'Hombres').length;
+                                        const m = arr.filter(x => x.gender === 'Mujeres').length;
+                                        const x = arr.filter(x => x.gender === 'Mixto').length;
+                                        return { h, m, x, ph: (h/total)*100, pm: (m/total)*100, px: (x/total)*100 };
+                                    };
+                                    const genMatches = calcGender(fMatches);
+                                    const genPlayers = calcGender(fPlayers);
+
+                                    const totalM = fMatches.length;
+                                    const challenges = fMatches.filter(m => m.isChallenge || m.type === 'rival').length;
+                                    const challengePct = totalM > 0 ? Math.round((challenges / totalM) * 100) : 0;
+                                    const premiumTotal = fMatches.filter(m => m.isPromoted).length + fPlayers.filter(p => p.isPromoted).length;
+
+                                    return (
+                                        <div className="space-y-6">
+                                            {/* BARRA DE CONTROL */}
+                                            <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-900 p-3 rounded border-b-2 border-[#00ff55] gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-[#00ff55] text-black p-2 rounded"><BarChart2 size={20}/></div>
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-white uppercase italic">Inteligencia Comercial</h3>
+                                                        <p className="text-[10px] text-gray-400">Datos para Sponsors</p>
+                                                    </div>
+                                                </div>
+                                                <select 
+                                                    value={dashboardTimeRange}
+                                                    onChange={(e) => setDashboardTimeRange(e.target.value)}
+                                                    className="bg-black text-white text-xs border border-gray-600 rounded px-3 py-1.5 font-bold outline-none hover:border-[#00ff55]"
+                                                >
+                                                    <option value="all">Histórico Total</option>
+                                                    <option value="year">Este Año</option>
+                                                    <option value="month">Este Mes</option>
+                                                </select>
+                                            </div>
+
+                                            {/* KPIs PRINCIPALES */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <div className="bg-[#1a1a1a] p-3 rounded border border-gray-700 text-center">
+                                                    <div className="text-[10px] text-gray-400 uppercase font-bold">Partidos</div>
+                                                    <div className="text-2xl font-black text-white">{totalM}</div>
+                                                </div>
+                                                <div className="bg-[#1a1a1a] p-3 rounded border border-gray-700 text-center">
+                                                    <div className="text-[10px] text-gray-400 uppercase font-bold">Jugadores Nuevos</div>
+                                                    <div className="text-2xl font-black text-yellow-400">{fPlayers.length}</div>
+                                                </div>
+                                                <div className="bg-[#1a1a1a] p-3 rounded border border-gray-700 text-center">
+                                                    <div className="text-[10px] text-gray-400 uppercase font-bold">Tasa Desafíos</div>
+                                                    <div className="text-2xl font-black text-blue-400">{challengePct}%</div>
+                                                </div>
+                                                <div className="bg-[#1a1a1a] p-3 rounded border border-gray-700 text-center">
+                                                    <div className="text-[10px] text-gray-400 uppercase font-bold">Premium</div>
+                                                    <div className="text-2xl font-black text-[#00ff55]">{premiumTotal}</div>
+                                                </div>
+                                            </div>
+
+                                            {/* GÉNERO (DEMOGRAFÍA) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="bg-[#1a1a1a] p-4 rounded border border-gray-700">
+                                                    <h4 className="text-gray-400 text-xs font-bold uppercase mb-3 flex items-center gap-2"><Users size={14} className="text-blue-400"/> Género en Partidos</h4>
+                                                    <div className="flex h-4 rounded-full overflow-hidden mb-2">
+                                                        <div style={{width: genMatches.ph + '%'}} className="bg-blue-500 h-full"></div>
+                                                        <div style={{width: genMatches.pm + '%'}} className="bg-pink-500 h-full"></div>
+                                                        <div style={{width: genMatches.px + '%'}} className="bg-purple-500 h-full"></div>
+                                                    </div>
+                                                    <div className="flex justify-between text-[10px] text-gray-300">
+                                                        <span>🔵 H ({genMatches.h})</span>
+                                                        <span>🟣 M ({genMatches.m})</span>
+                                                        <span>🟣 X ({genMatches.x})</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-[#1a1a1a] p-4 rounded border border-gray-700">
+                                                    <h4 className="text-gray-400 text-xs font-bold uppercase mb-3 flex items-center gap-2"><User size={14} className="text-yellow-400"/> Género Jugadores</h4>
+                                                    <div className="flex h-4 rounded-full overflow-hidden mb-2">
+                                                        <div style={{width: genPlayers.ph + '%'}} className="bg-blue-500 h-full"></div>
+                                                        <div style={{width: genPlayers.pm + '%'}} className="bg-pink-500 h-full"></div>
+                                                        <div style={{width: genPlayers.px + '%'}} className="bg-purple-500 h-full"></div>
+                                                    </div>
+                                                    <div className="flex justify-between text-[10px] text-gray-300">
+                                                        <span>🔵 H ({genPlayers.h})</span>
+                                                        <span>🟣 M ({genPlayers.m})</span>
+                                                        <span>🟣 X ({genPlayers.x})</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* INTENSIDAD */}
+                                            <div className="bg-[#1a1a1a] p-4 rounded border border-gray-700 shadow-lg">
+                                                <h4 className="text-white text-xs font-bold uppercase mb-4 flex items-center gap-2"><Activity size={14} className="text-[#00ff55]"/> Intensidad de Consumo</h4>
+                                                <div className="space-y-4">
+                                                    {(() => {
+                                                        const levels = fMatches.reduce((acc, m) => { acc[m.level] = (acc[m.level]||0)+1; return acc; }, {});
+                                                        return Object.entries(levels).map(([lvl, count]) => {
+                                                            const pct = (count/totalM)*100;
+                                                            let color = 'bg-yellow-500';
+                                                            if(lvl.includes('Morir')) color='bg-red-600';
+                                                            if(lvl.includes('Tranqui')) color='bg-blue-500';
+                                                            return (
+                                                                <div key={lvl}>
+                                                                    <div className="flex justify-between text-[10px] text-white mb-1"><span className="font-bold">{lvl}</span><span>{count}</span></div>
+                                                                    <div className="w-full bg-gray-800 rounded-full h-2 relative">
+                                                                        <div style={{width: pct+'%'}} className={`h-full rounded-full ${color}`}></div>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        });
+                                                    })()}
+                                                    {totalM === 0 && <div className="text-center text-xs text-gray-500">Sin datos</div>}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -1449,23 +1521,46 @@
                                     )}
                                     <div className="flex-1">
                                         {isEditingNickname ? (
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <input 
-                                                    value={nicknameInput} 
-                                                    onChange={e=>setNicknameInput(e.target.value)} 
-                                                    className="app-input rounded px-2 py-1 text-lg font-bold w-full"
-                                                    placeholder="Nuevo apodo"
-                                                />
-                                                <button onClick={handleUpdateNickname} className="text-[#00ff55]"><Save size={20}/></button>
-                                                <button onClick={() => setIsEditingNickname(false)} className="text-red-500"><X size={20}/></button>
+                                            <div className="space-y-2 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        value={nicknameInput} 
+                                                        onChange={e=>setNicknameInput(e.target.value)} 
+                                                        className="app-input rounded px-2 py-1 text-lg font-bold w-full"
+                                                        placeholder="Apodo"
+                                                    />
+                                                    <button onClick={handleUpdateNickname} className="text-[#00ff55]"><Save size={20}/></button>
+                                                    <button onClick={() => setIsEditingNickname(false)} className="text-red-500"><X size={20}/></button>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Fecha Nacimiento</label>
+                                                    <input 
+                                                        type="date"
+                                                        value={birthDateInput} 
+                                                        onChange={e=>setBirthDateInput(e.target.value)} 
+                                                        className="app-input rounded px-2 py-1 text-xs w-full"
+                                                    />
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="flex flex-col">
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-2xl font-black text-white italic">{userProfile?.nickname || user?.displayName}</div>
-                                                    <button onClick={() => { setNicknameInput(userProfile?.nickname || user?.displayName); setIsEditingNickname(true); }} className="text-gray-500 hover:text-white"><Edit2 size={16}/></button>
+                                                    <button onClick={() => { 
+                                                        setNicknameInput(userProfile?.nickname || user?.displayName); 
+                                                        setBirthDateInput(userProfile?.birthDate || ''); 
+                                                        setIsEditingNickname(true); 
+                                                    }} className="text-gray-500 hover:text-white"><Edit2 size={16}/></button>
                                                 </div>
-                                                <div className="text-gray-400 text-xs mb-1">{user?.email}</div>
+                                                
+                                                <div className="text-gray-400 text-xs mb-1 flex items-center gap-2">
+                                                    {user?.email}
+                                                    {userProfile?.birthDate && (
+                                                        <span className="bg-gray-700 text-white px-2 py-0.5 rounded text-[10px] font-bold border border-gray-600">
+                                                            {calculateAge(userProfile.birthDate)} Años
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 
                                                 {isEditingPosition ? (
                                                     <div className="flex items-center gap-2">
