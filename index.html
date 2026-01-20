@@ -158,9 +158,8 @@
 
         const today = new Date().toISOString().split('T')[0];
         const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-        // Aquí definimos las fechas de corte:
-        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // Para ocultar en feed
-        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0]; // Para limitar lecturas DB
+        const yesterdayString = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const sevenDaysAgoString = new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0];
         const maxPublishDate = new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0];
 
         // --- COMPONENTES AUXILIARES ---
@@ -178,7 +177,6 @@
             </button>
         );
 
-        // FIX: Forzamos mayúsculas (toUpperCase) en el label para móviles que ignoran CSS
         const ZoneSelectOptions = () => (<>{Object.entries(ZONES_BY_AREA).map(([region, zones]) => (
             <optgroup 
                 key={region} 
@@ -267,7 +265,6 @@
             const [showStatsDetails, setShowStatsDetails] = useState(false);
             
             // UI States
-            // FIX: Declaramos historyEnabled AQUÍ, ANTES de usarlo en "Computed"
             const [historyEnabled, setHistoryEnabled] = useState(false);
 
             const [showLoginModal, setShowLoginModal] = useState(false);
@@ -319,10 +316,8 @@
 
             // Computed
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
-            // Ahora historyEnabled ya existe cuando se ejecuta esto
             const myOrganizedMatches = historyEnabled ? myFullHistoryMatches : matches.filter(m => m.createdBy === user?.uid); 
             const matchesJoined = historyEnabled ? myFullJoinedMatches.length : (user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)).length : 0);
-            const playedMatchesListDisplay = historyEnabled ? myFullJoinedMatches : (user ? matches.filter(m => m.playersSigned && m.playersSigned.includes(user.uid)) : []);
             
             const myPostulations = user ? players.filter(p => p.uid === user.uid) : [];
             const userRating = userProfile?.rating || 0;
@@ -1072,8 +1067,6 @@
                                         </div>
                                     </div>
                                     <div className="bg-[#dce6dc] rounded-b-lg overflow-hidden text-gray-800 min-h-[200px]">
-                                        {/* BANNER DE PUBLICIDAD ELIMINADO */}
-                                        
                                         {loading ? <div className="p-8 text-center text-gray-500">Cargando la cancha...</div> : 
                                          feedMatches.map(m => {
                                             const isSigned = m.playersSigned?.includes(user?.uid);
@@ -1138,21 +1131,13 @@
                                     <div className="bg-[#212121] text-white px-4 py-3 rounded-t-lg border-t-4 border-[#00ff55] font-bold text-sm flex items-center gap-2"><Users size={16} className="text-[#00ff55]"/> AGENTES LIBRES</div>
                                     <div className="bg-[#dce6dc] border border-gray-600 rounded-b-lg shadow-md p-2 space-y-2">
                                         {players.map(p => {
-                                            // Lógica de color y abreviatura exacta
                                             const posLower = p.position.toLowerCase();
-                                            let posAbbr = "POL"; // Por defecto Polifuncional
+                                            let posAbbr = "POL";
                                             let posColor = "bg-green-600";
-
-                                            if (posLower.includes('arquero')) {
-                                                posAbbr = "ARQ";
-                                                posColor = "bg-orange-500";
-                                            } else if (posLower.includes('defensor')) {
-                                                posAbbr = "DEF";
-                                            } else if (posLower.includes('medio') || posLower.includes('volante')) {
-                                                posAbbr = "VOL";
-                                            } else if (posLower.includes('delantero') || posLower.includes('9')) {
-                                                posAbbr = "DEL";
-                                            }
+                                            if (posLower.includes('arquero')) { posAbbr = "ARQ"; posColor = "bg-orange-500"; }
+                                            else if (posLower.includes('defensor')) { posAbbr = "DEF"; }
+                                            else if (posLower.includes('medio') || posLower.includes('volante')) { posAbbr = "VOL"; }
+                                            else if (posLower.includes('delantero') || posLower.includes('9')) { posAbbr = "DEL"; }
 
                                             // Estilo Premium Jugador
                                             const premiumStyle = p.isPromoted ? 'border-2 border-yellow-400 shadow-[0_0_10px_rgba(251,191,36,0.2)]' : 'border border-gray-300';
@@ -1161,10 +1146,7 @@
                                             return (
                                                 <div key={p.id} className={`bg-white p-2 rounded shadow-sm flex justify-between items-center ${premiumStyle}`}>
                                                     <div className="flex items-center">
-                                                        {/* Cuadrado de Posición con Texto Ajustado */}
-                                                        <div className={`w-8 h-8 ${posColor} flex items-center justify-center font-bold text-white rounded mr-3 shadow-sm text-[10px]`}>
-                                                            {posAbbr}
-                                                        </div>
+                                                        <div className={`w-8 h-8 ${posColor} flex items-center justify-center font-bold text-white rounded mr-3 shadow-sm text-[10px]`}>{posAbbr}</div>
                                                         <div>
                                                             <div className={`font-bold text-xs uppercase flex items-center gap-2 ${nameStyle}`}>
                                                                 {p.name}
@@ -1183,21 +1165,18 @@
                                             );
                                         })}
                                         <div className="mt-2 pt-2 border-t border-gray-300">
-                                            {/* FIX: Reorganización de inputs para evitar desbordamiento */}
-                                            <div className="space-y-2 mb-2">
-                                                <div className="flex gap-2">
-                                                    <select className="flex-1 text-xs p-1 rounded border" value={postulationPosition} onChange={e=>setPostulationPosition(e.target.value)}>
-                                                        {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
-                                                    </select>
-                                                    <select className="flex-1 text-xs p-1 rounded border" value={playerPostulationGender} onChange={e=>setPlayerPostulationGender(e.target.value)}>
-                                                        {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                                                    </select>
-                                                </div>
-                                                <select className="w-full text-xs p-1 rounded border" value={playerPostulationLevel} onChange={e=>setPlayerPostulationLevel(e.target.value)}>
+                                            <div className="flex gap-2 mb-2">
+                                                <select className="flex-1 text-xs p-1 rounded border" value={postulationPosition} onChange={e=>setPostulationPosition(e.target.value)}>
+                                                    {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                                                </select>
+                                                <select className="flex-1 text-xs p-1 rounded border" value={playerPostulationLevel} onChange={e=>setPlayerPostulationLevel(e.target.value)}>
                                                     {MATCH_LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
                                                 </select>
+                                                {/* NUEVO SELECTOR DE GÉNERO PARA JUGADOR LIBRE */}
+                                                <select className="flex-1 text-xs p-1 rounded border" value={playerPostulationGender} onChange={e=>setPlayerPostulationGender(e.target.value)}>
+                                                    {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                                                </select>
                                             </div>
-
                                             {/* CHECKBOX PARA SIMULAR DESTACAR (PREMIUM) */}
                                             <label className="flex items-center gap-2 mb-2 text-xs text-gray-600 cursor-pointer">
                                                 <input type="checkbox" checked={isPostulationPromoted} onChange={e => setIsPostulationPromoted(e.target.checked)} className="accent-[#00ff55]"/>
@@ -1328,7 +1307,6 @@
                                             <Shield size={64} className="mx-auto text-gray-700 mb-6 opacity-50"/>
                                             <h3 className="text-2xl font-black text-white italic mb-2">SIN EQUIPO</h3>
                                             <p className="text-gray-400 text-sm mb-8 max-w-xs mx-auto">Crea tu propio equipo para gestionar tu plantel o busca uno existente.</p>
-                                            
                                             <div className="flex flex-col gap-3 max-w-xs mx-auto">
                                                 <button onClick={() => setShowCreateTeamModal(true)} className="bg-[#00ff55] text-black font-black px-6 py-4 rounded-lg shadow-[0_0_20px_rgba(0,255,85,0.3)] hover:scale-105 transition-transform flex items-center justify-center gap-2 uppercase tracking-wider">
                                                     <PlusCircle size={20}/> Crear Equipo
@@ -1351,7 +1329,6 @@
                                         <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center text-4xl">👤</div>
                                     )}
                                     <div className="flex-1">
-                                        {/* FIX 2: Restaurar edición de apodo */}
                                         {isEditingNickname ? (
                                             <div className="flex items-center gap-2 mb-1">
                                                 <input 
@@ -1371,7 +1348,6 @@
                                                 </div>
                                                 <div className="text-gray-500 text-xs mb-1">{user?.email}</div>
                                                 
-                                                {/* NUEVO: EDICION DE POSICION EN PERFIL */}
                                                 {isEditingPosition ? (
                                                     <div className="flex items-center gap-2">
                                                         <select 
@@ -1393,9 +1369,16 @@
                                         )}
                                         <div className="text-[#00ff55] font-bold mt-1">★ {userRating.toFixed(1)} <span className="text-gray-500 text-xs">({userRatingCount})</span></div>
                                     </div>
+                                    {isAdmin && (
+                                        <button 
+                                            onClick={() => setView('admin')} 
+                                            className="bg-red-900/50 border border-red-500 text-white text-[10px] font-bold p-2 rounded flex flex-col items-center hover:bg-red-900 transition-colors"
+                                        >
+                                            <Shield size={16} className="mb-1"/> ADMIN
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* FIX: Estadísticas en Perfil */}
                                 <div className="grid grid-cols-2 gap-4 mt-6 text-left">
                                     <div className="bg-gray-800 p-3 rounded border border-gray-700">
                                         <div className="text-xs text-gray-400 uppercase">Partidos Creados</div>
@@ -1421,87 +1404,89 @@
                                     </div>
                                 </div>
 
-                                {/* ACORDEÓN DESPLEGABLE: Historial Detallado */}
                                 <div className="mt-4">
-                                    <button 
-                                        onClick={() => setShowStatsDetails(!showStatsDetails)} 
-                                        className="w-full flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700 text-white font-bold text-sm hover:bg-gray-700 transition-colors"
-                                    >
-                                        <span>VER HISTORIAL RECIENTE</span>
-                                        {showStatsDetails ? <ChevUp size={16}/> : <ChevDown size={16}/>}
-                                    </button>
-
-                                    {showStatsDetails && (
-                                        <div className="mt-2 bg-[#1a1a1a] border border-gray-800 rounded p-3 text-left space-y-4 modal-animate">
-                                            <p className="text-[10px] text-gray-500 italic text-center">Mostrando actividad reciente</p>
-                                            
-                                            {/* NUEVA SECCIÓN: LISTA DE PARTIDOS CREADOS */}
-                                            <div>
-                                                <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Organizados por mí ({myOrganizedMatches.length})</h4>
-                                                {myOrganizedMatches.length > 0 ? (
-                                                    // FIX: max-h-48 para limitar altura y quitada la clase no-scrollbar para ver la barra
-                                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                        {myOrganizedMatches.map(m => (
-                                                            <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-[#00ff55]">
-                                                                <div>
-                                                                    <div className="font-bold text-white">{m.teamName}</div>
-                                                                    <div className="text-[10px] text-gray-500">{m.date} {m.time} | {m.place}</div>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <span className="block bg-gray-800 px-1.5 py-0.5 rounded text-[9px] mb-1">{m.format}</span>
-                                                                    {/* Botón rápido para borrar si es viejo */}
-                                                                    <button onClick={() => handleDeleteMatch(m.id)} className="text-red-500 hover:text-white p-1"><Trash2 size={12}/></button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-600 text-xs italic">Aún no has organizado partidos.</p>
-                                                )}
-                                            </div>
-
-                                            {/* LISTA DE PARTIDOS JUGADOS */}
-                                            <div>
-                                                <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Partidos donde juego ({playedMatchesList.length})</h4>
-                                                {playedMatchesList.length > 0 ? (
-                                                    // FIX: Scrollbar visible y altura limitada
-                                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                        {playedMatchesList.map(m => (
-                                                            <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-blue-500">
-                                                                <div>
-                                                                    <span className="text-white font-bold">{m.teamName}</span>
-                                                                    <div className="text-gray-500">{m.date} {m.time} | {m.place}</div>
-                                                                </div>
-                                                                <span className="bg-gray-800 px-2 py-0.5 rounded text-[9px]">{m.format}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-600 text-xs italic">Aún no te has anotado en partidos.</p>
-                                                )}
-                                            </div>
-
-                                            {/* LISTA DE POSTULACIONES */}
-                                            <div>
-                                                <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Mis Postulaciones ({myPostulations.length})</h4>
-                                                {myPostulations.length > 0 ? (
-                                                    // FIX: Scrollbar visible y altura limitada (antes no tenía límite)
-                                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                        {myPostulations.map(p => (
-                                                            <div key={p.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-yellow-500">
-                                                                <div>
-                                                                    <span className="text-white font-bold">{p.position}</span>
-                                                                    <div className="text-gray-500">Zona: {p.zone}</div>
-                                                                </div>
-                                                                <button onClick={() => handleDeletePlayer(p.id)} className="text-red-500 hover:text-white"><Trash2 size={14}/></button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-600 text-xs italic">No estás postulado como libre.</p>
-                                                )}
-                                            </div>
+                                    {!historyEnabled ? (
+                                        <div className="text-center p-4">
+                                            <p className="text-gray-400 text-xs mb-2">Para ahorrar datos, el historial antiguo no se carga automáticamente.</p>
+                                            <button onClick={() => setHistoryEnabled(true)} className="bg-[#00ff55] text-black font-bold px-4 py-2 rounded">
+                                                📥 CARGAR HISTORIAL COMPLETO
+                                            </button>
                                         </div>
+                                    ) : (
+                                        <>
+                                        <button 
+                                            onClick={() => setShowStatsDetails(!showStatsDetails)} 
+                                            className="w-full flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700 text-white font-bold text-sm hover:bg-gray-700 transition-colors"
+                                        >
+                                            <span>VER HISTORIAL COMPLETO</span>
+                                            {showStatsDetails ? <ChevUp size={16}/> : <ChevDown size={16}/>}
+                                        </button>
+
+                                        {showStatsDetails && (
+                                            <div className="mt-2 bg-[#1a1a1a] border border-gray-800 rounded p-3 text-left space-y-4 modal-animate">
+                                                <p className="text-[10px] text-gray-500 italic text-center">Mostrando todo tu historial</p>
+                                                <div>
+                                                    <h4 className="text-[#00ff55] text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Organizados por mí ({myFullHistoryMatches.length})</h4>
+                                                    {myFullHistoryMatches.length > 0 ? (
+                                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                            {myFullHistoryMatches.map(m => (
+                                                                <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-[#00ff55]">
+                                                                    <div>
+                                                                        <div className="font-bold text-white">{m.teamName}</div>
+                                                                        <div className="text-[10px] text-gray-500">{m.date} {m.time} | {m.place}</div>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <span className="block bg-gray-800 px-1.5 py-0.5 rounded text-[9px] mb-1">{m.format}</span>
+                                                                        <button onClick={() => handleDeleteMatch(m.id)} className="text-red-500 hover:text-white p-1"><Trash2 size={12}/></button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-gray-600 text-xs italic">Aún no has organizado partidos.</p>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Partidos donde juego ({myFullJoinedMatches.length})</h4>
+                                                    {myFullJoinedMatches.length > 0 ? (
+                                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                            {myFullJoinedMatches.map(m => (
+                                                                <div key={m.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-blue-500">
+                                                                    <div>
+                                                                        <span className="text-white font-bold">{m.teamName}</span>
+                                                                        <div className="text-gray-500">{m.date} {m.time} | {m.place}</div>
+                                                                    </div>
+                                                                    <span className="bg-gray-800 px-2 py-0.5 rounded text-[9px]">{m.format}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-gray-600 text-xs italic">Aún no te has anotado en partidos.</p>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <h4 className="text-white text-xs font-black uppercase mb-2 border-b border-gray-800 pb-1">Mis Postulaciones ({myPostulations.length})</h4>
+                                                    {myPostulations.length > 0 ? (
+                                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                            {myPostulations.map(p => (
+                                                                <div key={p.id} className="text-xs text-gray-300 bg-gray-900 p-2 rounded flex justify-between items-center border-l-2 border-yellow-500">
+                                                                    <div>
+                                                                        <span className="text-white font-bold">{p.position}</span>
+                                                                        <div className="text-gray-500">Zona: {p.zone}</div>
+                                                                    </div>
+                                                                    <button onClick={() => handleDeletePlayer(p.id)} className="text-red-500 hover:text-white"><Trash2 size={14}/></button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-gray-600 text-xs italic">No estás postulado como libre.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        </>
                                     )}
                                 </div>
 
@@ -1575,6 +1560,14 @@
                                             )}
                                         </div>
                                     )}
+
+                                    {/* NUEVO: SELECCIÓN DE GÉNERO EN PUBLICAR PARTIDO (Faltaba aquí) */}
+                                    <div className="space-y-1">
+                                        <label className="text-gray-400 text-xs font-bold ml-1">Género</label>
+                                        <select value={publishData.gender} onChange={(e) => setPublishData({...publishData, gender: e.target.value})} className="w-full bg-black/50 border border-gray-700 text-white rounded py-2 px-2 text-sm outline-none focus:border-[#00ff55]">
+                                            {MATCH_GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
 
                                     <div className="space-y-1">
                                         <label className="text-gray-400 text-xs font-bold ml-1">Fecha (Máx: 1 Semana)</label>
