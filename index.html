@@ -1229,11 +1229,11 @@
                                                 </select>
                                             </div>
 
-                                            {/* CHECKBOX PARA SIMULAR DESTACAR (PREMIUM) */}
-                                            <label className="flex items-center gap-2 mb-2 text-xs text-gray-600 cursor-pointer">
-                                                <input type="checkbox" checked={isPostulationPromoted} onChange={e => setIsPostulationPromoted(e.target.checked)} className="accent-[#00ff55]"/>
-                                                <span className="font-bold flex items-center gap-1">Destacar Postulación (Premium) <Sparkles size={10} className="text-yellow-500"/></span>
-                                            </label>
+                                            {userProfile?.isPromoted && (
+                                                <div className="text-[10px] text-yellow-500 font-bold mb-2 flex items-center gap-1">
+                                                     <Sparkles size={10}/> Tu postulación se destacará automáticamente (Premium)
+                                                </div>
+                                         )}
                                             <button onClick={handleJoinAsPlayer} className="w-full bg-[#212121] text-[#00ff55] font-bold text-xs py-2 rounded uppercase border border-gray-600 hover:border-[#00ff55]">Postularme</button>
                                         </div>
                                     </div>
